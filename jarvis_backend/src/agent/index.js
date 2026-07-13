@@ -5,13 +5,9 @@ import { tools } from "../tools/index.js";
 import { SYSTEM_PROMPT } from "./systemPrompt.js";
 import { logger } from "../logger.js";
 import { runWithSession } from "../security/sessionContext.js";
+import { MODEL_FALLBACK_CHAIN, isQuotaError } from "./modelFallback.js";
 
-export const MODEL_FALLBACK_CHAIN = [
-  "gemini-3.1-flash-lite",
-  "gemini-flash-lite-latest",
-  "gemini-2.0-flash",
-  "gemini-2.5-flash",
-];
+export { MODEL_FALLBACK_CHAIN, isQuotaError };
 
 const modelsByName = new Map(
   MODEL_FALLBACK_CHAIN.map((name) => [
@@ -23,10 +19,6 @@ const modelsByName = new Map(
 );
 
 let activeModelIndex = 0;
-
-export function isQuotaError(error) {
-  return error?.status === 429 || /quota|rate.?limit/i.test(error?.message || "");
-}
 
 async function invokeWithFallback(messages) {
   for (let i = activeModelIndex; i < MODEL_FALLBACK_CHAIN.length; i++) {

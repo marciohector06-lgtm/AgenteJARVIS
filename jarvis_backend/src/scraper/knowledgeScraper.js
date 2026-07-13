@@ -4,7 +4,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { saveKnowledge } from "../memory/index.js";
 import { logger } from "../logger.js";
-import { MODEL_FALLBACK_CHAIN, isQuotaError } from "../agent/index.js";
+import { MODEL_FALLBACK_CHAIN, isQuotaError } from "../agent/modelFallback.js";
 
 const CRON_SCHEDULE = "0 2 * * *";
 const CRON_TIMEZONE = "America/Sao_Paulo";

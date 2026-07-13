@@ -4,7 +4,4 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - chroma-data:/data
-
-volumes:
-  chroma-data:
+      - ./chroma-data:/data

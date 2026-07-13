@@ -8,6 +8,7 @@ import { transcribeAudio } from "./audio/stt.js";
 import { textToSpeech } from "./audio/tts.js";
 import { logger } from "./logger.js";
 import { startKnowledgeScraper } from "./scraper/knowledgeScraper.js";
+import { startDisasterRecoveryCron } from "./tools/disasterRecoveryTool.js";
 import { confirmationBroker, resolveConfirmation } from "./security/confirmationBroker.js";
 
 const PORT = process.env.PORT || 4000;
@@ -117,4 +118,5 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, () => {
   logger.info(`J.A.R.V.I.S server (Express + Socket.io) rodando na porta ${PORT}.`);
   startKnowledgeScraper();
+  startDisasterRecoveryCron();
 });

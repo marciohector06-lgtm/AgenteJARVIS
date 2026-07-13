@@ -9,6 +9,16 @@ import { tiktokProductHunterTool } from "./tiktokProductHunter.js";
 import { vMixControlTool } from "./vMixControl.js";
 import { logReaderTool } from "./logReader.js";
 import { wakeOnLanTool } from "./wakeOnLan.js";
+import { sportsDataTool } from "./sportsDataTool.js";
+import { qaEngineerTool } from "./qaEngineerTool.js";
+import { localCodeRagTool } from "./localCodeRagTool.js";
+import { dockerDeployTool } from "./dockerDeployTool.js";
+import { infraMonitorTool } from "./infraMonitorTool.js";
+import { gamingOptimizerTool } from "./gamingOptimizerTool.js";
+import { networkOrchestratorTool } from "./networkOrchestratorTool.js";
+import { remoteExecutionTool } from "./remoteExecutionTool.js";
+import { smartIoTTool } from "./smartIoTTool.js";
+import { disasterRecoveryTool } from "./disasterRecoveryTool.js";
 
 const getSystemTimeTool = tool(
   async () => {
@@ -54,4 +64,14 @@ export const tools = [
   vMixControlTool,
   logReaderTool,
   wakeOnLanTool,
+  sportsDataTool,
+  qaEngineerTool,
+  localCodeRagTool,
+  dockerDeployTool,
+  infraMonitorTool,
+  gamingOptimizerTool,
+  networkOrchestratorTool,
+  remoteExecutionTool,
+  smartIoTTool,
+  disasterRecoveryTool,
 ];

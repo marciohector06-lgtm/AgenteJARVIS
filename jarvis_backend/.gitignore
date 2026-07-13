@@ -3,3 +3,4 @@ node_modules
 terminal.log
 jarvis.db
 logs/
+chroma-data/
