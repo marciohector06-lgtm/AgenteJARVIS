@@ -1,10 +1,12 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { recallMemory, saveMemory } from "../memory/index.js";
+import { recallMemory, saveMemory, getHistory } from "../memory/index.js";
 import { tools } from "../tools/index.js";
 import { SYSTEM_PROMPT } from "./systemPrompt.js";
+import { logger } from "../logger.js";
+import { runWithSession } from "../security/sessionContext.js";
 
-const MODEL_FALLBACK_CHAIN = [
+export const MODEL_FALLBACK_CHAIN = [
   "gemini-3.1-flash-lite",
   "gemini-flash-lite-latest",
   "gemini-2.0-flash",
@@ -22,7 +24,7 @@ const modelsByName = new Map(
 
 let activeModelIndex = 0;
 
-function isQuotaError(error) {
+export function isQuotaError(error) {
   return error?.status === 429 || /quota|rate.?limit/i.test(error?.message || "");
 }
 
@@ -36,7 +38,7 @@ async function invokeWithFallback(messages) {
     } catch (error) {
       const isLastModel = i === MODEL_FALLBACK_CHAIN.length - 1;
       if (isQuotaError(error) && !isLastModel) {
-        console.warn(`Cota esgotada em "${modelName}", trocando para "${MODEL_FALLBACK_CHAIN[i + 1]}"...`);
+        logger.warn(`Cota esgotada em "${modelName}", trocando para "${MODEL_FALLBACK_CHAIN[i + 1]}"...`);
         continue;
       }
       throw error;
@@ -47,40 +49,53 @@ async function invokeWithFallback(messages) {
 const toolsByName = Object.fromEntries(tools.map((t) => [t.name, t]));
 
 export async function askAgent(userId, message) {
-  const pastMemories = await recallMemory(userId, message);
+  return runWithSession(userId, async () => {
+    const recentHistory = getHistory(userId, 6);
+    const knowledge = await recallMemory(message);
 
-  const prompt = pastMemories.length
-    ? `Contexto de conversas anteriores com este usuário:\n${pastMemories
-        .map((memory) => `- ${memory}`)
-        .join("\n")}\n\nMensagem atual do usuário: ${message}`
-    : message;
+    const historyBlock = recentHistory.length
+      ? `Histórico recente da conversa:\n${recentHistory
+          .map((turn) => `${turn.role}: ${turn.text}`)
+          .join("\n")}`
+      : "";
 
-  const messages = [new SystemMessage(SYSTEM_PROMPT), new HumanMessage(prompt)];
+    const knowledgeBlock = knowledge.length
+      ? `Conhecimento relevante:\n${knowledge.map((item) => `- ${item}`).join("\n")}`
+      : "";
 
-  let response = await invokeWithFallback(messages);
-  messages.push(response);
+    const contextBlock = [historyBlock, knowledgeBlock].filter(Boolean).join("\n\n");
 
-  while (response.tool_calls?.length) {
-    for (const toolCall of response.tool_calls) {
-      const selectedTool = toolsByName[toolCall.name];
-      const result = selectedTool
-        ? await selectedTool.invoke(toolCall.args)
-        : `Ferramenta "${toolCall.name}" não encontrada.`;
+    const prompt = contextBlock
+      ? `${contextBlock}\n\nMensagem atual do usuário: ${message}`
+      : message;
 
-      messages.push(
-        new ToolMessage({
-          content: String(result),
-          tool_call_id: toolCall.id,
-        })
-      );
+    const messages = [new SystemMessage(SYSTEM_PROMPT), new HumanMessage(prompt)];
+
+    let response = await invokeWithFallback(messages);
+    messages.push(response);
+
+    while (response.tool_calls?.length) {
+      for (const toolCall of response.tool_calls) {
+        const selectedTool = toolsByName[toolCall.name];
+        const result = selectedTool
+          ? await selectedTool.invoke(toolCall.args)
+          : `Ferramenta "${toolCall.name}" não encontrada.`;
+
+        messages.push(
+          new ToolMessage({
+            content: String(result),
+            tool_call_id: toolCall.id,
+          })
+        );
+      }
+
+      response = await invokeWithFallback(messages);
+      messages.push(response);
     }
 
-    response = await invokeWithFallback(messages);
-    messages.push(response);
-  }
+    await saveMemory(userId, "user", message);
+    await saveMemory(userId, "assistant", response.content);
 
-  await saveMemory(userId, "user", message);
-  await saveMemory(userId, "assistant", response.content);
-
-  return response.content;
+    return response.content;
+  });
 }

@@ -1,3 +1,5 @@
 node_modules
 .env
 terminal.log
+jarvis.db
+logs/

@@ -1,6 +1,7 @@
 import wol from "wake_on_lan";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { logger } from "../logger.js";
 
 const MAC_REGEX = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
@@ -12,6 +13,7 @@ export const wakeOnLanTool = tool(
 
     return new Promise((resolve) => {
       wol.wake(macAddress, (error) => {
+        logger.info(`wake_on_lan mac=${macAddress} resultado=${error ? "erro" : "enviado"}`);
         resolve(
           error
             ? `Falha ao enviar magic packet para ${macAddress}: ${error.message}`

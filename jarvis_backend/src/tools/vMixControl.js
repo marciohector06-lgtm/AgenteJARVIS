@@ -1,5 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { logger } from "../logger.js";
 
 const VMIX_API_BASE = process.env.VMIX_API_URL || "http://127.0.0.1:8088/api/";
 
@@ -18,10 +19,12 @@ export const vMixControlTool = tool(
       const response = await fetch(url, { signal: controller.signal });
       const text = await response.text();
 
+      logger.info(`vmix_control funcao=${functionName} httpStatus=${response.status}`);
       return response.ok
         ? `Comando "${functionName}" enviado ao vMix com sucesso.\n${text.slice(0, 500)}`
         : `vMix respondeu com erro (HTTP ${response.status}) ao comando "${functionName}".\n${text.slice(0, 500)}`;
     } catch (error) {
+      logger.info(`vmix_control funcao=${functionName} erro=${error.message}`);
       return `Não foi possível conectar ao vMix em ${VMIX_API_BASE}: ${error.message}. Verifique se o vMix está aberto e o Web Controller habilitado (Settings > Web Controller).`;
     } finally {
       clearTimeout(timeoutId);

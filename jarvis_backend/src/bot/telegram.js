@@ -2,8 +2,25 @@ import "dotenv/config";
 import { Telegraf } from "telegraf";
 import { askAgent } from "../agent/index.js";
 import { getHistory } from "../memory/index.js";
+import { logger } from "../logger.js";
+import { confirmationBroker, resolveConfirmation } from "../security/confirmationBroker.js";
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+
+const pendingConfirmations = new Map();
+
+const CONFIRM_WORDS = ["confirmar", "sim", "yes"];
+const CANCEL_WORDS = ["cancelar", "não", "nao", "no"];
+
+confirmationBroker.on("request", ({ requestId, sessionId, description }) => {
+  pendingConfirmations.set(String(sessionId), requestId);
+  bot.telegram
+    .sendMessage(
+      sessionId,
+      `⚠️ Comando destrutivo pendente de confirmação:\n\n${description}\n\nResponda "CONFIRMAR" ou "CANCELAR".`
+    )
+    .catch((error) => logger.error(`Erro ao enviar pedido de confirmação: ${error.message}`));
+});
 
 const ROLE_LABEL = {
   user: "Você",
@@ -21,7 +38,7 @@ bot.command("meuid", async (ctx) => {
 
 bot.use(async (ctx, next) => {
   if (!ALLOWED_USER_IDS.includes(String(ctx.from?.id))) {
-    console.warn(`Acesso negado para o usuário ${ctx.from?.id}`);
+    logger.warn(`Acesso negado para o usuário ${ctx.from?.id}`);
     return;
   }
   return next();
@@ -42,12 +59,36 @@ bot.command("historico", async (ctx) => {
 
     await ctx.reply(transcript.slice(-4000));
   } catch (error) {
-    console.error("Erro ao buscar histórico:", error);
+    logger.error(`Erro ao buscar histórico: ${error.stack || error.message}`);
     await ctx.reply("Ocorreu um erro ao buscar o histórico. Tente novamente.");
   }
 });
 
 bot.on("text", async (ctx) => {
+  const chatKey = String(ctx.from.id);
+  const pendingRequestId = pendingConfirmations.get(chatKey);
+
+  if (pendingRequestId) {
+    const normalized = ctx.message.text.trim().toLowerCase();
+
+    if (CONFIRM_WORDS.includes(normalized)) {
+      pendingConfirmations.delete(chatKey);
+      resolveConfirmation(pendingRequestId, true);
+      await ctx.reply("Confirmado. Executando...");
+      return;
+    }
+
+    if (CANCEL_WORDS.includes(normalized)) {
+      pendingConfirmations.delete(chatKey);
+      resolveConfirmation(pendingRequestId, false);
+      await ctx.reply("Cancelado.");
+      return;
+    }
+
+    await ctx.reply('Há um comando destrutivo pendente. Responda "CONFIRMAR" ou "CANCELAR".');
+    return;
+  }
+
   const userMessage = ctx.message.text;
   const thinkingMessage = await ctx.reply("Pensando...");
 
@@ -60,7 +101,7 @@ bot.on("text", async (ctx) => {
       reply
     );
   } catch (error) {
-    console.error("Erro ao processar mensagem:", error);
+    logger.error(`Erro ao processar mensagem: ${error.stack || error.message}`);
     await ctx.telegram.editMessageText(
       ctx.chat.id,
       thinkingMessage.message_id,
@@ -71,7 +112,7 @@ bot.on("text", async (ctx) => {
 });
 
 bot.launch();
-console.log("J.A.R.V.I.S está online.");
+logger.info("J.A.R.V.I.S está online.");
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));

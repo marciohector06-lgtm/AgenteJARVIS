@@ -1,6 +1,7 @@
 import { exec } from "node:child_process";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { logger } from "../logger.js";
 
 const VALID_HOST = /^[a-zA-Z0-9.\-:]+$/;
 
@@ -28,10 +29,12 @@ export const networkPingTool = tool(
     });
 
     if (output.error) {
+      logger.info(`network_ping alvo=${target} status=offline`);
       return `Host "${target}" está OFFLINE ou inalcançável.\n\n${output.text}`;
     }
 
     const latency = extractLatency(output.text);
+    logger.info(`network_ping alvo=${target} status=online latencia=${latency || "n/a"}`);
     return `Host "${target}" está ONLINE.${
       latency ? ` Latência média: ${latency}.` : ""
     }\n\n${output.text}`;
