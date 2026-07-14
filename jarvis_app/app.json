@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "JARVIS",
+    "slug": "jarvis_app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.jarvis.app",
+      "permissions": ["RECORD_AUDIO", "INTERNET"],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ed189a4a-e1d7-43ef-bfe4-8a0792d37881"
+      }
+    },
+    "owner": "marcio121"
+  }
+}
