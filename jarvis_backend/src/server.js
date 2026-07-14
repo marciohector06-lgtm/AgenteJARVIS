@@ -89,6 +89,7 @@ io.on("connection", (socket) => {
     try {
       const reply = await askAgent(socket.sessionId, text);
       await respondWithVoice(socket, reply);
+      logger.info(`user:message processada com sucesso (sessionId: ${socket.sessionId})`);
     } catch (error) {
       logger.error(`Erro ao processar mensagem: ${error.stack || error.message}`);
       socket.emit("jarvis:error", { message: "Ocorreu um erro ao processar sua mensagem." });
@@ -103,6 +104,7 @@ io.on("connection", (socket) => {
       const text = await transcribeAudio(buffer, mimeType);
       const reply = await askAgent(socket.sessionId, text);
       await respondWithVoice(socket, reply);
+      logger.info(`user:audio processado com sucesso (sessionId: ${socket.sessionId})`);
     } catch (error) {
       logger.error(`Erro ao processar áudio: ${error.stack || error.message}`);
       socket.emit("jarvis:error", { message: "Ocorreu um erro ao processar seu áudio." });

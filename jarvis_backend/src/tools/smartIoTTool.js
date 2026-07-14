@@ -73,10 +73,23 @@ export const smartIoTTool = tool(
         let result;
 
         if (deviceType === "tv" || deviceType === "led_panel") {
-          const body = { ...(input !== undefined ? { input } : {}), ...(typeof payload === "object" && payload !== null ? payload : {}) };
+          let extraPayload = {};
+          if (payload) {
+            try {
+              extraPayload = JSON.parse(payload);
+            } catch {
+              return JSON.stringify({
+                deviceType,
+                host,
+                action,
+                error: `payload não é um JSON válido: "${payload}"`,
+              });
+            }
+          }
+          const body = { ...(input !== undefined ? { input } : {}), ...extraPayload };
           result = await controlViaRest(host, action, body);
         } else if (deviceType === "broadlink") {
-          if (typeof payload !== "string" || !payload) {
+          if (!payload) {
             return JSON.stringify({
               deviceType,
               host,
@@ -111,10 +124,10 @@ export const smartIoTTool = tool(
         .optional()
         .describe("Valor simples da ação, quando aplicável (ex: input da TV, nível de volume/brilho)"),
       payload: z
-        .union([z.string(), z.record(z.any())])
+        .string()
         .optional()
         .describe(
-          "Pra tv/led_panel: objeto JSON livre com parâmetros extras (ex: cor). Pra broadlink: string obrigatória com o comando IR em base64."
+          "Pra tv/led_panel: string JSON com parâmetros extras (ex: '{\"color\":\"#FF0000\"}'). Pra broadlink: string obrigatória com o comando IR em base64."
         ),
     }),
   }
