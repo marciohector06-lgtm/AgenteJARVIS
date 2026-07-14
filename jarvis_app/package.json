@@ -11,6 +11,7 @@
     "expo-file-system": "~57.0.0",
     "expo-secure-store": "~57.0.0",
     "expo-status-bar": "~57.0.0",
+    "expo-updates": "~57.0.6",
     "react": "19.2.3",
     "react-native": "0.86.0",
     "react-native-reanimated": "4.5.0",
@@ -26,7 +27,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "update": "eas update --channel development --message"
   },
   "private": true
 }
