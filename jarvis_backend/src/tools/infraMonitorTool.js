@@ -4,7 +4,6 @@ import { z } from "zod";
 import { networkPingTool } from "./networkPing.js";
 import { serverStatusTool } from "./serverStatus.js";
 import { wakeOnLanTool } from "./wakeOnLan.js";
-import { guardExecution } from "../security/guardExecution.js";
 import { logger } from "../logger.js";
 
 function snmpGet(host, oid, community) {
@@ -55,11 +54,10 @@ export const infraMonitorTool = tool(
 
       if (action === "wol") {
         if (!mac) return "mac é obrigatório para action='wol'.";
-        return await guardExecution(`Wake-on-LAN para ${mac}`, { destructive: true }, async () => {
-          const result = await wakeOnLanTool.invoke({ macAddress: mac });
-          logger.info(`infra_monitor_tool action=wol mac=${mac}`);
-          return JSON.stringify({ action, mac, timestamp, result });
-        });
+        // wakeOnLanTool já passa por guardExecution internamente — não embrulhar de novo aqui.
+        const result = await wakeOnLanTool.invoke({ macAddress: mac });
+        logger.info(`infra_monitor_tool action=wol mac=${mac}`);
+        return JSON.stringify({ action, mac, timestamp, result });
       }
 
       if (action === "snmp_get") {

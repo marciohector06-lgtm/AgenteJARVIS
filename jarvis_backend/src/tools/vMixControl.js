@@ -1,6 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { logger } from "../logger.js";
+import { guardExecution } from "../security/guardExecution.js";
 
 const VMIX_API_BASE = process.env.VMIX_API_URL || "http://127.0.0.1:8088/api/";
 
@@ -23,29 +24,31 @@ export const vMixControlTool = tool(
       return `Ação "${action}" inválida, ou functionName ausente quando action="custom".`;
     }
 
-    const url = new URL(VMIX_API_BASE);
-    url.searchParams.set("Function", resolvedFunction);
-    if (input !== undefined) url.searchParams.set("Input", String(input));
-    if (value !== undefined) url.searchParams.set("Value", String(value));
-    if (duration !== undefined) url.searchParams.set("Duration", String(duration));
+    return guardExecution(`vMix: ${resolvedFunction}`, { destructive: true }, async () => {
+      const url = new URL(VMIX_API_BASE);
+      url.searchParams.set("Function", resolvedFunction);
+      if (input !== undefined) url.searchParams.set("Input", String(input));
+      if (value !== undefined) url.searchParams.set("Value", String(value));
+      if (duration !== undefined) url.searchParams.set("Duration", String(duration));
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5_000);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5_000);
 
-    try {
-      const response = await fetch(url, { signal: controller.signal });
-      const text = await response.text();
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        const text = await response.text();
 
-      logger.info(`vmix_control funcao=${resolvedFunction} httpStatus=${response.status}`);
-      return response.ok
-        ? `Comando "${resolvedFunction}" enviado ao vMix com sucesso.\n${text.slice(0, 500)}`
-        : `vMix respondeu com erro (HTTP ${response.status}) ao comando "${resolvedFunction}".\n${text.slice(0, 500)}`;
-    } catch (error) {
-      logger.info(`vmix_control funcao=${resolvedFunction} erro=${error.message}`);
-      return `Não foi possível conectar ao vMix em ${VMIX_API_BASE}: ${error.message}. Verifique se o vMix está aberto e o Web Controller habilitado (Settings > Web Controller).`;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+        logger.info(`vmix_control funcao=${resolvedFunction} httpStatus=${response.status}`);
+        return response.ok
+          ? `Comando "${resolvedFunction}" enviado ao vMix com sucesso.\n${text.slice(0, 500)}`
+          : `vMix respondeu com erro (HTTP ${response.status}) ao comando "${resolvedFunction}".\n${text.slice(0, 500)}`;
+      } catch (error) {
+        logger.info(`vmix_control funcao=${resolvedFunction} erro=${error.message}`);
+        return `Não foi possível conectar ao vMix em ${VMIX_API_BASE}: ${error.message}. Verifique se o vMix está aberto e o Web Controller habilitado (Settings > Web Controller).`;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    });
   },
   {
     name: "vmix_control",

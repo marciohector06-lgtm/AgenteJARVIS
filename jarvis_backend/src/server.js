@@ -88,7 +88,10 @@ io.on("connection", (socket) => {
     if (!text) return;
 
     try {
-      const reply = await askAgent(socket.sessionId, text);
+      const reply = await askAgent(socket.sessionId, text, {
+        onPlan: (steps) => socket.emit("jarvis:plan", { steps }),
+        onStepDone: (stepResult) => socket.emit("jarvis:step_done", stepResult),
+      });
       await respondWithVoice(socket, reply);
       logger.info(`user:message processada com sucesso (sessionId: ${socket.sessionId})`);
     } catch (error) {
@@ -103,7 +106,10 @@ io.on("connection", (socket) => {
     try {
       const buffer = Buffer.from(audioBuffer, "base64");
       const text = await transcribeAudio(buffer, mimeType);
-      const reply = await askAgent(socket.sessionId, text);
+      const reply = await askAgent(socket.sessionId, text, {
+        onPlan: (steps) => socket.emit("jarvis:plan", { steps }),
+        onStepDone: (stepResult) => socket.emit("jarvis:step_done", stepResult),
+      });
       await respondWithVoice(socket, reply);
       logger.info(`user:audio processado com sucesso (sessionId: ${socket.sessionId})`);
     } catch (error) {
