@@ -4,9 +4,11 @@ import { StatusBar } from 'expo-status-bar';
 import { getPin, authenticate } from './src/services/auth';
 import { PinScreen } from './src/screens/PinScreen';
 import { MainScreen } from './src/screens/MainScreen';
+import { DashboardScreen } from './src/screens/DashboardScreen';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
+  const [screen, setScreen] = useState<'main' | 'dashboard'>('main');
 
   useEffect(() => {
     (async () => {
@@ -25,7 +27,13 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar hidden />
-      {token === null ? <PinScreen onSuccess={setToken} /> : <MainScreen token={token} />}
+      {token === null ? (
+        <PinScreen onSuccess={setToken} />
+      ) : screen === 'dashboard' ? (
+        <DashboardScreen token={token} onBack={() => setScreen('main')} />
+      ) : (
+        <MainScreen token={token} onOpenDashboard={() => setScreen('dashboard')} />
+      )}
     </SafeAreaView>
   );
 }

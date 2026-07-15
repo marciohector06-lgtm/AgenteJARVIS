@@ -15,10 +15,33 @@ const modelsByName = new Map(
 
 let activeModelIndex = 0;
 
-async function invokeWithFallback(messages) {
+function extractText(content) {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((part) => typeof part === "string" || part?.type === "text")
+      .map((part) => (typeof part === "string" ? part : part.text || ""))
+      .join("");
+  }
+  return "";
+}
+
+async function invokeWithFallback(messages, onChunk) {
   for (let i = activeModelIndex; i < MODEL_FALLBACK_CHAIN.length; i++) {
     const modelName = MODEL_FALLBACK_CHAIN[i];
     try {
+      if (onChunk) {
+        const stream = await modelsByName.get(modelName).stream(messages);
+        let full;
+        for await (const chunk of stream) {
+          const text = extractText(chunk.content);
+          if (text) onChunk(text);
+          full = full ? full.concat(chunk) : chunk;
+        }
+        activeModelIndex = i;
+        return full;
+      }
+
       const response = await modelsByName.get(modelName).invoke(messages);
       activeModelIndex = i;
       return response;
@@ -35,8 +58,8 @@ async function invokeWithFallback(messages) {
 
 const toolsByName = Object.fromEntries(tools.map((t) => [t.name, t]));
 
-export async function runToolLoop(messages) {
-  let response = await invokeWithFallback(messages);
+export async function runToolLoop(messages, { onChunk } = {}) {
+  let response = await invokeWithFallback(messages, onChunk);
   messages.push(response);
 
   while (response.tool_calls?.length) {
@@ -54,7 +77,7 @@ export async function runToolLoop(messages) {
       );
     }
 
-    response = await invokeWithFallback(messages);
+    response = await invokeWithFallback(messages, onChunk);
     messages.push(response);
   }
 

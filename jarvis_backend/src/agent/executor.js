@@ -20,7 +20,7 @@ Execute este passo específico e retorne o resultado de forma objetiva.`;
   return response.content;
 }
 
-async function synthesizeFinalAnswer(originalTask, results) {
+async function synthesizeFinalAnswer(originalTask, results, onChunk) {
   const summaryPrompt = `Tarefa original do usuário: ${originalTask}
 
 Resultados de cada passo executado:
@@ -29,11 +29,11 @@ ${results.map((r) => `Passo ${r.step} (${r.reason}): ${r.result}`).join("\n\n")}
 Com base nesses resultados, dê a resposta final consolidada para a tarefa original do usuário. Seja direto e objetivo.`;
 
   const messages = [new HumanMessage(summaryPrompt)];
-  const { response } = await runToolLoop(messages);
+  const { response } = await runToolLoop(messages, { onChunk });
   return response.content;
 }
 
-export async function executePlan(originalTask, steps, { onStepDone } = {}) {
+export async function executePlan(originalTask, steps, { onStepDone, onChunk } = {}) {
   const results = [];
   let accumulatedContext = "";
   let failedStep = null;
@@ -75,6 +75,6 @@ export async function executePlan(originalTask, steps, { onStepDone } = {}) {
     };
   }
 
-  const finalAnswer = await synthesizeFinalAnswer(originalTask, results);
+  const finalAnswer = await synthesizeFinalAnswer(originalTask, results, onChunk);
   return { steps: results, finalAnswer };
 }

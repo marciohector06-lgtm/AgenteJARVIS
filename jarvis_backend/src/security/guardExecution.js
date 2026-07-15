@@ -1,6 +1,7 @@
 import { logger } from "../logger.js";
 import { getCurrentSessionId } from "./sessionContext.js";
 import { requestConfirmation } from "./confirmationBroker.js";
+import { isKillSwitchActive } from "./killSwitch.js";
 
 const DESTRUCTIVE_PATTERNS = [
   /\bkill\b/i,
@@ -23,6 +24,11 @@ export function isDestructiveCommand(command) {
 }
 
 export async function guardExecution(description, { destructive = false } = {}, executeFn) {
+  if (isKillSwitchActive()) {
+    logger.warn(`guardExecution: BLOQUEADO pelo kill switch: "${description}"`);
+    return "Ação bloqueada: o kill switch está ativo. Reative o sistema (user:kill_switch) antes de tentar novamente.";
+  }
+
   const sessionId = getCurrentSessionId();
 
   if (destructive && process.env.REQUIRE_CONFIRM === "true") {

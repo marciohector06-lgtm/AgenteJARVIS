@@ -19,6 +19,7 @@ import { networkOrchestratorTool } from "./networkOrchestratorTool.js";
 import { remoteExecutionTool } from "./remoteExecutionTool.js";
 import { smartIoTTool } from "./smartIoTTool.js";
 import { disasterRecoveryTool } from "./disasterRecoveryTool.js";
+import { copyGeneratorTool } from "./copyGeneratorTool.js";
 
 const getSystemTimeTool = tool(
   async () => {
@@ -74,4 +75,5 @@ export const tools = [
   remoteExecutionTool,
   smartIoTTool,
   disasterRecoveryTool,
+  copyGeneratorTool,
 ];

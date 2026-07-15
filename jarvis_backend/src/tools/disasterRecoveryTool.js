@@ -70,7 +70,7 @@ function extractEncryptedZip(zipPath, destination, password) {
   });
 }
 
-function listBackups(destination) {
+export function listBackups(destination) {
   if (!existsSync(destination)) return [];
   return readdirSync(destination)
     .filter((name) => /^jarvis-backup-.*\.zip$/.test(name))

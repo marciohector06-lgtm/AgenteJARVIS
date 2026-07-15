@@ -15,6 +15,9 @@ import { startBriefing } from "./proactive/briefing.js";
 import { startMonitor } from "./proactive/monitor.js";
 import { startFollowup } from "./proactive/followup.js";
 import { startWeekly } from "./proactive/weekly.js";
+import { analyzeMedia } from "./media/mediaAnalyzer.js";
+import { buildDashboard } from "./dashboard/index.js";
+import { isKillSwitchActive, setKillSwitch } from "./security/killSwitch.js";
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -83,6 +86,8 @@ io.on("connection", (socket) => {
   sessionSockets.add(socket);
   socketsBySession.set(socket.sessionId, sessionSockets);
 
+  socket.emit("jarvis:kill_switch", { active: isKillSwitchActive() });
+
   socket.on("user:confirm", ({ requestId, approved } = {}) => {
     if (!requestId) return;
     resolveConfirmation(requestId, Boolean(approved));
@@ -95,7 +100,9 @@ io.on("connection", (socket) => {
       const reply = await askAgent(socket.sessionId, text, {
         onPlan: (steps) => socket.emit("jarvis:plan", { steps }),
         onStepDone: (stepResult) => socket.emit("jarvis:step_done", stepResult),
+        onChunk: (chunkText) => socket.emit("jarvis:stream_chunk", { text: chunkText }),
       });
+      socket.emit("jarvis:stream_end");
       await respondWithVoice(socket, reply);
       logger.info(`user:message processada com sucesso (sessionId: ${socket.sessionId})`);
     } catch (error) {
@@ -113,12 +120,42 @@ io.on("connection", (socket) => {
       const reply = await askAgent(socket.sessionId, text, {
         onPlan: (steps) => socket.emit("jarvis:plan", { steps }),
         onStepDone: (stepResult) => socket.emit("jarvis:step_done", stepResult),
+        onChunk: (chunkText) => socket.emit("jarvis:stream_chunk", { text: chunkText }),
       });
+      socket.emit("jarvis:stream_end");
       await respondWithVoice(socket, reply);
       logger.info(`user:audio processado com sucesso (sessionId: ${socket.sessionId})`);
     } catch (error) {
       logger.error(`Erro ao processar áudio: ${error.stack || error.message}`);
       socket.emit("jarvis:error", { message: "Ocorreu um erro ao processar seu áudio." });
+    }
+  });
+
+  socket.on("user:media", async ({ mediaBuffer, mimeType, caption } = {}) => {
+    if (!mediaBuffer || !mimeType) return;
+
+    try {
+      const analysis = await analyzeMedia(mediaBuffer, mimeType, caption);
+      await respondWithVoice(socket, analysis);
+      logger.info(`user:media processado com sucesso (sessionId: ${socket.sessionId}, mimeType: ${mimeType})`);
+    } catch (error) {
+      logger.error(`Erro ao processar mídia: ${error.stack || error.message}`);
+      socket.emit("jarvis:error", { message: "Ocorreu um erro ao processar sua mídia." });
+    }
+  });
+
+  socket.on("user:kill_switch", ({ active } = {}) => {
+    const newState = setKillSwitch(active);
+    io.emit("jarvis:kill_switch", { active: newState });
+  });
+
+  socket.on("user:get_dashboard", async () => {
+    try {
+      const dashboard = await buildDashboard(socketsBySession.size);
+      socket.emit("jarvis:dashboard", dashboard);
+    } catch (error) {
+      logger.error(`Erro ao montar dashboard: ${error.stack || error.message}`);
+      socket.emit("jarvis:error", { message: "Ocorreu um erro ao montar o dashboard." });
     }
   });
 

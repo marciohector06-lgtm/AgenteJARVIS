@@ -39,6 +39,7 @@ export async function askAgent(userId, message, callbacks = {}) {
 
       const { steps, finalAnswer } = await executePlan(message, plan.steps, {
         onStepDone: callbacks.onStepDone,
+        onChunk: callbacks.onChunk,
       });
 
       await saveMemory(userId, "user", message);
@@ -51,7 +52,7 @@ export async function askAgent(userId, message, callbacks = {}) {
     const systemContent = profile ? `${SYSTEM_PROMPT}\n\n${profile}` : SYSTEM_PROMPT;
     const messages = [new SystemMessage(systemContent), new HumanMessage(prompt)];
 
-    const { response } = await runToolLoop(messages);
+    const { response } = await runToolLoop(messages, { onChunk: callbacks.onChunk });
 
     await saveMemory(userId, "user", message);
     await saveMemory(userId, "assistant", response.content);

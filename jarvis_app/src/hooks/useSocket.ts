@@ -15,6 +15,8 @@ type ConfirmNeededPayload = {
 
 export function useSocket(token: string | null, onResponse: (payload: JarvisResponsePayload) => void) {
   const [isConnected, setIsConnected] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const [isKillSwitchActive, setIsKillSwitchActive] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -30,8 +32,16 @@ export function useSocket(token: string | null, onResponse: (payload: JarvisResp
     socket.on('connect', () => setIsConnected(true));
     socket.on('disconnect', () => setIsConnected(false));
 
+    socket.on('jarvis:stream_chunk', ({ text }: { text: string }) => {
+      setStreamingText((prev) => prev + text);
+    });
+
     socket.on('jarvis:response', (payload: JarvisResponsePayload) => {
       onResponse(payload);
+    });
+
+    socket.on('jarvis:kill_switch', ({ active }: { active: boolean }) => {
+      setIsKillSwitchActive(active);
     });
 
     socket.on('jarvis:confirm_needed', ({ requestId, command }: ConfirmNeededPayload) => {
@@ -55,12 +65,18 @@ export function useSocket(token: string | null, onResponse: (payload: JarvisResp
   }, [token, onResponse]);
 
   const sendAudio = useCallback((audioBuffer: string, mimeType: string) => {
+    setStreamingText('');
     socketRef.current?.emit('user:audio', { audioBuffer, mimeType });
   }, []);
 
   const sendMessage = useCallback((text: string) => {
+    setStreamingText('');
     socketRef.current?.emit('user:message', { text });
   }, []);
 
-  return { isConnected, sendAudio, sendMessage };
+  const sendKillSwitch = useCallback((active: boolean) => {
+    socketRef.current?.emit('user:kill_switch', { active });
+  }, []);
+
+  return { isConnected, sendAudio, sendMessage, streamingText, isKillSwitchActive, sendKillSwitch };
 }

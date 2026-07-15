@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { Avatar } from '../components/Avatar';
 import { PushToTalk } from '../components/PushToTalk';
 import { useAudio } from '../hooks/useAudio';
@@ -14,10 +14,13 @@ const STATUS_LABEL = {
 
 type Props = {
   token: string;
+  onOpenDashboard: () => void;
 };
 
-export function MainScreen({ token }: Props) {
-  const { startRecording, stopRecording, playResponse, appState } = useAudio();
+export function MainScreen({ token, onOpenDashboard }: Props) {
+  const { startRecording, stopRecording, playResponse, appState, setAppState } = useAudio();
+  const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice');
+  const [textValue, setTextValue] = useState('');
 
   const handleResponse = useCallback(
     ({ audioBuffer }: { text: string; audioBuffer: string }) => {
@@ -26,7 +29,10 @@ export function MainScreen({ token }: Props) {
     [playResponse]
   );
 
-  const { isConnected, sendAudio } = useSocket(token, handleResponse);
+  const { isConnected, sendAudio, sendMessage, streamingText, isKillSwitchActive, sendKillSwitch } = useSocket(
+    token,
+    handleResponse
+  );
 
   const handlePressIn = () => {
     startRecording();
@@ -37,22 +43,79 @@ export function MainScreen({ token }: Props) {
     sendAudio(audioBuffer, mimeType);
   };
 
+  const handleSendText = () => {
+    const text = textValue.trim();
+    if (!text) return;
+    setAppState('processing');
+    sendMessage(text);
+    setTextValue('');
+  };
+
+  const toggleKillSwitch = () => {
+    sendKillSwitch(!isKillSwitchActive);
+  };
+
+  const showStreamingText = streamingText.length > 0 && (appState === 'processing' || appState === 'speaking');
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.connectionDot, { backgroundColor: isConnected ? '#00FF00' : '#FF0000' }]} />
+
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={toggleKillSwitch} style={styles.killSwitchButton}>
+          <View style={[styles.killSwitchDot, { backgroundColor: isKillSwitchActive ? '#FF0000' : '#00FF88' }]} />
+          <Text style={styles.killSwitchText}>{isKillSwitchActive ? 'KILL SWITCH ON' : 'KILL SWITCH OFF'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={onOpenDashboard}>
+          <Text style={styles.dashboardLink}>DASHBOARD</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.avatarSection}>
         <Avatar appState={appState} />
       </View>
 
+      {showStreamingText && (
+        <View style={styles.streamingBox}>
+          <Text style={styles.streamingText}>{streamingText}</Text>
+        </View>
+      )}
+
+      <View style={styles.modeToggle}>
+        <TouchableOpacity onPress={() => setInputMode('voice')}>
+          <Text style={[styles.modeText, inputMode === 'voice' && styles.modeTextActive]}>VOZ</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setInputMode('text')}>
+          <Text style={[styles.modeText, inputMode === 'text' && styles.modeTextActive]}>TEXTO</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.controlSection}>
-        <PushToTalk appState={appState} onPressIn={handlePressIn} onPressOut={handlePressOut} />
+        {inputMode === 'voice' ? (
+          <PushToTalk appState={appState} onPressIn={handlePressIn} onPressOut={handlePressOut} />
+        ) : (
+          <View style={styles.textInputRow}>
+            <TextInput
+              style={styles.textInput}
+              value={textValue}
+              onChangeText={setTextValue}
+              placeholder="Digite sua mensagem..."
+              placeholderTextColor="#666666"
+              onSubmitEditing={handleSendText}
+              returnKeyType="send"
+            />
+            <TouchableOpacity onPress={handleSendText} style={styles.sendButton}>
+              <Text style={styles.sendButtonText}>ENVIAR</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <View style={styles.statusSection}>
         <Text style={styles.statusText}>{STATUS_LABEL[appState]}</Text>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -70,13 +133,97 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     zIndex: 10,
   },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  killSwitchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  killSwitchDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  killSwitchText: {
+    color: '#CCCCCC',
+    fontFamily: 'monospace',
+    fontSize: 10,
+  },
+  dashboardLink: {
+    color: '#00FFFF',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
   avatarSection: {
-    flex: 0.7,
+    flex: 0.6,
+  },
+  streamingBox: {
+    paddingHorizontal: 24,
+    marginBottom: 8,
+    maxHeight: 100,
+  },
+  streamingText: {
+    color: '#00FFFF',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  modeToggle: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  modeText: {
+    color: '#666666',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    marginHorizontal: 12,
+    letterSpacing: 1,
+  },
+  modeTextActive: {
+    color: '#00FFFF',
+    fontWeight: 'bold',
   },
   controlSection: {
     flex: 0.2,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  textInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '90%',
+  },
+  textInput: {
+    flex: 1,
+    borderColor: '#00FFFF66',
+    borderWidth: 1,
+    borderRadius: 8,
+    color: '#FFFFFF',
+    fontFamily: 'monospace',
+    fontSize: 13,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  sendButton: {
+    borderColor: '#00FFFF',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  sendButtonText: {
+    color: '#00FFFF',
+    fontFamily: 'monospace',
+    fontSize: 11,
   },
   statusSection: {
     flex: 0.1,
