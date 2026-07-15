@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Telegraf } from "telegraf";
 import { askAgent } from "../agent/index.js";
 import { getHistory } from "../memory/index.js";
+import { getProfile } from "../memory/profileManager.js";
 import { logger } from "../logger.js";
 import { confirmationBroker, resolveConfirmation } from "../security/confirmationBroker.js";
 
@@ -61,6 +62,16 @@ bot.command("historico", async (ctx) => {
   } catch (error) {
     logger.error(`Erro ao buscar histórico: ${error.stack || error.message}`);
     await ctx.reply("Ocorreu um erro ao buscar o histórico. Tente novamente.");
+  }
+});
+
+bot.command("perfil", async (ctx) => {
+  try {
+    const profile = getProfile();
+    await ctx.reply(profile || "Ainda não há nenhum fato registrado no seu perfil.");
+  } catch (error) {
+    logger.error(`Erro ao buscar perfil: ${error.stack || error.message}`);
+    await ctx.reply("Ocorreu um erro ao buscar o perfil. Tente novamente.");
   }
 });
 

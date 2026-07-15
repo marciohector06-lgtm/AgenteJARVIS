@@ -2,5 +2,7 @@ node_modules
 .env
 terminal.log
 jarvis.db
+jarvis.db-shm
+jarvis.db-wal
 logs/
 chroma-data/

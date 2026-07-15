@@ -10,6 +10,7 @@ import { logger } from "./logger.js";
 import { startKnowledgeScraper } from "./scraper/knowledgeScraper.js";
 import { startDisasterRecoveryCron } from "./tools/disasterRecoveryTool.js";
 import { confirmationBroker, resolveConfirmation } from "./security/confirmationBroker.js";
+import { getProfile, updateProfile } from "./memory/profileManager.js";
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -109,6 +110,20 @@ io.on("connection", (socket) => {
       logger.error(`Erro ao processar áudio: ${error.stack || error.message}`);
       socket.emit("jarvis:error", { message: "Ocorreu um erro ao processar seu áudio." });
     }
+  });
+
+  socket.on("user:get_profile", () => {
+    socket.emit("jarvis:profile", { profile: getProfile() });
+  });
+
+  socket.on("user:update_profile", ({ category, key, value, confidence } = {}) => {
+    if (!category || !key || !value) {
+      socket.emit("jarvis:error", { message: "category, key e value são obrigatórios para user:update_profile." });
+      return;
+    }
+
+    updateProfile(category, key, value, confidence);
+    socket.emit("jarvis:profile", { profile: getProfile() });
   });
 
   socket.on("disconnect", () => {

@@ -6,6 +6,7 @@ import { SYSTEM_PROMPT } from "./systemPrompt.js";
 import { logger } from "../logger.js";
 import { runWithSession } from "../security/sessionContext.js";
 import { MODEL_FALLBACK_CHAIN, isQuotaError } from "./modelFallback.js";
+import { getProfile, extractProfileUpdates } from "../memory/profileManager.js";
 
 export { MODEL_FALLBACK_CHAIN, isQuotaError };
 
@@ -44,6 +45,7 @@ export async function askAgent(userId, message) {
   return runWithSession(userId, async () => {
     const recentHistory = getHistory(userId, 6);
     const knowledge = await recallMemory(message);
+    const profile = getProfile();
 
     const historyBlock = recentHistory.length
       ? `Histórico recente da conversa:\n${recentHistory
@@ -61,7 +63,8 @@ export async function askAgent(userId, message) {
       ? `${contextBlock}\n\nMensagem atual do usuário: ${message}`
       : message;
 
-    const messages = [new SystemMessage(SYSTEM_PROMPT), new HumanMessage(prompt)];
+    const systemContent = profile ? `${SYSTEM_PROMPT}\n\n${profile}` : SYSTEM_PROMPT;
+    const messages = [new SystemMessage(systemContent), new HumanMessage(prompt)];
 
     let response = await invokeWithFallback(messages);
     messages.push(response);
@@ -87,6 +90,8 @@ export async function askAgent(userId, message) {
 
     await saveMemory(userId, "user", message);
     await saveMemory(userId, "assistant", response.content);
+
+    extractProfileUpdates(userId, message, response.content);
 
     return response.content;
   });
