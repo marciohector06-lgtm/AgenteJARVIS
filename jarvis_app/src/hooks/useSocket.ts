@@ -13,10 +13,19 @@ type ConfirmNeededPayload = {
   command: string;
 };
 
+export type ActiveLocation = {
+  location: string | null;
+  satelliteId: string | null;
+  known: boolean;
+  availableDevices: string[];
+  satelliteStatus: string | null;
+};
+
 export function useSocket(token: string | null, onResponse: (payload: JarvisResponsePayload) => void) {
   const [isConnected, setIsConnected] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [isKillSwitchActive, setIsKillSwitchActive] = useState(false);
+  const [activeLocation, setActiveLocation] = useState<ActiveLocation | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -42,6 +51,10 @@ export function useSocket(token: string | null, onResponse: (payload: JarvisResp
 
     socket.on('jarvis:kill_switch', ({ active }: { active: boolean }) => {
       setIsKillSwitchActive(active);
+    });
+
+    socket.on('jarvis:active_location', (payload: ActiveLocation) => {
+      setActiveLocation(payload);
     });
 
     socket.on('jarvis:confirm_needed', ({ requestId, command }: ConfirmNeededPayload) => {
@@ -78,5 +91,19 @@ export function useSocket(token: string | null, onResponse: (payload: JarvisResp
     socketRef.current?.emit('user:kill_switch', { active });
   }, []);
 
-  return { isConnected, sendAudio, sendMessage, streamingText, isKillSwitchActive, sendKillSwitch };
+  const sendNetworkContext = useCallback((ssid: string | null, subnet: string | null) => {
+    if (!ssid && !subnet) return;
+    socketRef.current?.emit('user:network_context', { ssid, subnet });
+  }, []);
+
+  return {
+    isConnected,
+    sendAudio,
+    sendMessage,
+    streamingText,
+    isKillSwitchActive,
+    sendKillSwitch,
+    activeLocation,
+    sendNetworkContext,
+  };
 }

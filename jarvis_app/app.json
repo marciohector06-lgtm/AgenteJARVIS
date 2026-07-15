@@ -29,7 +29,13 @@
     "plugins": [
       "expo-secure-store",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      [
+        "react-native-wifi-reborn",
+        {
+          "fineLocationPermission": true
+        }
+      ]
     ],
     "extra": {
       "eas": {

@@ -6,6 +6,7 @@ import { getProfile } from "../memory/profileManager.js";
 import { logger } from "../logger.js";
 import { confirmationBroker, resolveConfirmation } from "../security/confirmationBroker.js";
 import { listSatellites } from "../satellite/satelliteManager.js";
+import { registerNetwork, getSessionNetworkState } from "../satellite/knownNetworks.js";
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
@@ -97,6 +98,39 @@ bot.command("satelites", async (ctx) => {
   } catch (error) {
     logger.error(`Erro ao listar satélites: ${error.stack || error.message}`);
     await ctx.reply("Ocorreu um erro ao listar os satélites. Tente novamente.");
+  }
+});
+
+bot.command("registrar_local", async (ctx) => {
+  const args = ctx.message.text.trim().split(/\s+/).slice(1);
+
+  if (args.length < 2) {
+    await ctx.reply(
+      'Uso: /registrar_local <satelliteId|nenhum> <nome do local>\nVeja os IDs disponíveis em /satelites.\nEx: /registrar_local test-satellite-1 Estúdio 5K\nEx: /registrar_local nenhum Casa'
+    );
+    return;
+  }
+
+  const satelliteId = args[0].toLowerCase() === "nenhum" ? null : args[0];
+  const name = args.slice(1).join(" ");
+
+  const state = getSessionNetworkState("device");
+
+  if (!state) {
+    await ctx.reply(
+      "O app ainda não enviou o contexto da rede atual. Abra o app conectado na rede que você quer registrar e tente de novo."
+    );
+    return;
+  }
+
+  try {
+    registerNetwork(state.ssid, state.subnet, satelliteId, name);
+    await ctx.reply(
+      `Local "${name}" registrado para a rede atual do app${satelliteId ? ` (satélite: ${satelliteId})` : " (sem satélite)"}.`
+    );
+  } catch (error) {
+    logger.error(`Erro ao registrar local: ${error.stack || error.message}`);
+    await ctx.reply("Ocorreu um erro ao registrar o local. Tente novamente.");
   }
 });
 

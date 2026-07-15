@@ -22,9 +22,11 @@ import {
   registerSatellite,
   recordHeartbeat,
   listSatellites,
+  getSatellite,
   verifySatelliteToken,
   startStaleSweep,
 } from "./satellite/satelliteManager.js";
+import { recordNetworkContext } from "./satellite/knownNetworks.js";
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -225,6 +227,21 @@ io.on("connection", (socket) => {
 
   socket.on("user:list_satellites", () => {
     socket.emit("jarvis:satellites", { satellites: listSatellites() });
+  });
+
+  socket.on("user:network_context", ({ ssid, subnet } = {}) => {
+    if (!ssid && !subnet) return;
+
+    const state = recordNetworkContext(socket.sessionId, ssid, subnet);
+    const satellite = state.satelliteId ? getSatellite(state.satelliteId) : null;
+
+    socket.emit("jarvis:active_location", {
+      location: state.location,
+      satelliteId: state.satelliteId,
+      known: state.matched,
+      availableDevices: satellite?.capabilities || [],
+      satelliteStatus: satellite?.status || null,
+    });
   });
 
   socket.on("user:get_dashboard", async () => {

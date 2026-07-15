@@ -20,6 +20,7 @@ import { remoteExecutionTool } from "./remoteExecutionTool.js";
 import { smartIoTTool } from "./smartIoTTool.js";
 import { disasterRecoveryTool } from "./disasterRecoveryTool.js";
 import { copyGeneratorTool } from "./copyGeneratorTool.js";
+import { satelliteDeviceControlTool } from "./satelliteDeviceControlTool.js";
 
 const getSystemTimeTool = tool(
   async () => {
@@ -76,4 +77,5 @@ export const tools = [
   smartIoTTool,
   disasterRecoveryTool,
   copyGeneratorTool,
+  satelliteDeviceControlTool,
 ];

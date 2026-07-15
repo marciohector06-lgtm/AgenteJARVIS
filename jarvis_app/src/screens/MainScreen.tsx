@@ -1,9 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import * as Network from 'expo-network';
 import { Avatar } from '../components/Avatar';
 import { PushToTalk } from '../components/PushToTalk';
 import { useAudio } from '../hooks/useAudio';
 import { useSocket } from '../hooks/useSocket';
+import { useNetworkDetection } from '../hooks/useNetworkDetection';
 
 const STATUS_LABEL = {
   idle: 'Aguardando',
@@ -29,10 +31,40 @@ export function MainScreen({ token, onOpenDashboard }: Props) {
     [playResponse]
   );
 
-  const { isConnected, sendAudio, sendMessage, streamingText, isKillSwitchActive, sendKillSwitch } = useSocket(
-    token,
-    handleResponse
-  );
+  const {
+    isConnected,
+    sendAudio,
+    sendMessage,
+    streamingText,
+    isKillSwitchActive,
+    sendKillSwitch,
+    activeLocation,
+    sendNetworkContext,
+  } = useSocket(token, handleResponse);
+
+  const { detectNetwork } = useNetworkDetection();
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    let cancelled = false;
+
+    const detectAndSend = async () => {
+      const { ssid, subnet } = await detectNetwork();
+      if (!cancelled) sendNetworkContext(ssid, subnet);
+    };
+
+    detectAndSend();
+
+    const subscription = Network.addNetworkStateListener(() => {
+      detectAndSend();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, [isConnected, detectNetwork, sendNetworkContext]);
 
   const handlePressIn = () => {
     startRecording();
@@ -57,6 +89,12 @@ export function MainScreen({ token, onOpenDashboard }: Props) {
 
   const showStreamingText = streamingText.length > 0 && (appState === 'processing' || appState === 'speaking');
 
+  const locationLabel = !activeLocation
+    ? null
+    : activeLocation.known
+      ? `📍 ${activeLocation.location} — ${activeLocation.availableDevices.length} capacidade(s)`
+      : '📍 Rede desconhecida';
+
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.connectionDot, { backgroundColor: isConnected ? '#00FF00' : '#FF0000' }]} />
@@ -71,6 +109,12 @@ export function MainScreen({ token, onOpenDashboard }: Props) {
           <Text style={styles.dashboardLink}>DASHBOARD</Text>
         </TouchableOpacity>
       </View>
+
+      {locationLabel && (
+        <View style={styles.locationBar}>
+          <Text style={styles.locationText}>{locationLabel}</Text>
+        </View>
+      )}
 
       <View style={styles.avatarSection}>
         <Avatar appState={appState} />
@@ -160,6 +204,15 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontSize: 12,
     letterSpacing: 1,
+  },
+  locationBar: {
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  locationText: {
+    color: '#00FFFF88',
+    fontFamily: 'monospace',
+    fontSize: 11,
   },
   avatarSection: {
     flex: 0.6,
