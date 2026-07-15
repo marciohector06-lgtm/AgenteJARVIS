@@ -5,6 +5,7 @@ import { getHistory } from "../memory/index.js";
 import { getProfile } from "../memory/profileManager.js";
 import { logger } from "../logger.js";
 import { confirmationBroker, resolveConfirmation } from "../security/confirmationBroker.js";
+import { listSatellites } from "../satellite/satelliteManager.js";
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
@@ -72,6 +73,30 @@ bot.command("perfil", async (ctx) => {
   } catch (error) {
     logger.error(`Erro ao buscar perfil: ${error.stack || error.message}`);
     await ctx.reply("Ocorreu um erro ao buscar o perfil. Tente novamente.");
+  }
+});
+
+bot.command("satelites", async (ctx) => {
+  try {
+    const satellites = listSatellites();
+
+    if (satellites.length === 0) {
+      await ctx.reply("Nenhum satélite registrado ainda.");
+      return;
+    }
+
+    const lines = satellites.map((sat) => {
+      const emoji = sat.status === "online" ? "🟢" : "🔴";
+      const lastSeen = sat.lastSeen ? new Date(sat.lastSeen).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "nunca";
+      const location = sat.location ? ` — ${sat.location}` : "";
+      const capabilities = sat.capabilities.length > 0 ? sat.capabilities.join(", ") : "nenhuma";
+      return `${emoji} ${sat.name} (${sat.id})${location}\nHost: ${sat.host}\nCapacidades: ${capabilities}\nÚltimo sinal: ${lastSeen}`;
+    });
+
+    await ctx.reply(lines.join("\n\n"));
+  } catch (error) {
+    logger.error(`Erro ao listar satélites: ${error.stack || error.message}`);
+    await ctx.reply("Ocorreu um erro ao listar os satélites. Tente novamente.");
   }
 });
 

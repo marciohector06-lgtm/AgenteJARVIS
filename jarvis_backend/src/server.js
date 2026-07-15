@@ -18,6 +18,7 @@ import { startWeekly } from "./proactive/weekly.js";
 import { analyzeMedia } from "./media/mediaAnalyzer.js";
 import { buildDashboard } from "./dashboard/index.js";
 import { isKillSwitchActive, setKillSwitch } from "./security/killSwitch.js";
+import { registerSatellite, recordHeartbeat, listSatellites, startStaleSweep } from "./satellite/satelliteManager.js";
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -35,6 +36,41 @@ app.post("/auth/token", (req, res) => {
 
   const token = jwt.sign({ sub: "device" }, JWT_SECRET, { expiresIn: "24h" });
   return res.json({ token });
+});
+
+app.post("/satellite/register", (req, res) => {
+  const { id, name, host, token, location, capabilities, secret } = req.body || {};
+
+  if (!process.env.SATELLITE_REGISTRATION_SECRET || secret !== process.env.SATELLITE_REGISTRATION_SECRET) {
+    return res.status(401).json({ error: "Segredo de registro inválido." });
+  }
+
+  if (!id || !host || !token) {
+    return res.status(400).json({ error: "id, host e token são obrigatórios." });
+  }
+
+  try {
+    const satellite = registerSatellite(id, host, token, capabilities || [], { name, location });
+    return res.json({ satellite });
+  } catch (error) {
+    logger.error(`Erro ao registrar satélite: ${error.stack || error.message}`);
+    return res.status(500).json({ error: "Erro ao registrar satélite." });
+  }
+});
+
+app.post("/satellite/heartbeat", (req, res) => {
+  const { id, token } = req.body || {};
+
+  if (!id || !token) {
+    return res.status(400).json({ error: "id e token são obrigatórios." });
+  }
+
+  const ok = recordHeartbeat(id, token);
+  if (!ok) {
+    return res.status(401).json({ error: "Satélite desconhecido ou token inválido." });
+  }
+
+  return res.json({ ok: true });
 });
 
 const httpServer = http.createServer(app);
@@ -149,6 +185,10 @@ io.on("connection", (socket) => {
     io.emit("jarvis:kill_switch", { active: newState });
   });
 
+  socket.on("user:list_satellites", () => {
+    socket.emit("jarvis:satellites", { satellites: listSatellites() });
+  });
+
   socket.on("user:get_dashboard", async () => {
     try {
       const dashboard = await buildDashboard(socketsBySession.size);
@@ -187,4 +227,5 @@ httpServer.listen(PORT, () => {
   startMonitor();
   startFollowup();
   startWeekly();
+  startStaleSweep();
 });
