@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   useAudioRecorder,
   RecordingPresets,
   requestRecordingPermissionsAsync,
+  getRecordingPermissionsAsync,
   setAudioModeAsync,
   createAudioPlayer,
   type AudioStatus,
@@ -14,29 +15,43 @@ export type AppState = 'idle' | 'listening' | 'processing' | 'speaking';
 export function useAudio() {
   const [appState, setAppState] = useState<AppState>('idle');
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const permissionRequestedRef = useRef(false);
 
-  const requestPermission = useCallback(async () => {
-    if (permissionRequestedRef.current) return;
-    permissionRequestedRef.current = true;
+  const ensurePermission = useCallback(async (): Promise<boolean> => {
+    try {
+      const current = await getRecordingPermissionsAsync();
+      if (current.granted) return true;
 
-    const { status } = await requestRecordingPermissionsAsync();
-    if (status !== 'granted') {
-      throw new Error('Permissão de gravação de áudio negada.');
+      const requested = await requestRecordingPermissionsAsync();
+      return requested.granted;
+    } catch (error) {
+      console.warn('Erro ao verificar/solicitar permissão de microfone:', error);
+      return false;
     }
-
-    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
   }, []);
 
   const startRecording = useCallback(async () => {
-    await requestPermission();
+    const granted = await ensurePermission();
+    if (!granted) {
+      console.warn('Permissão de microfone negada — gravação cancelada.');
+      return;
+    }
 
-    await recorder.prepareToRecordAsync();
-    recorder.record();
-    setAppState('listening');
-  }, [requestPermission, recorder]);
+    try {
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setAppState('listening');
+    } catch (error) {
+      console.warn('Erro ao iniciar gravação:', error);
+      setAppState('idle');
+    }
+  }, [ensurePermission, recorder]);
 
   const stopRecording = useCallback(async (): Promise<{ audioBuffer: string; mimeType: string }> => {
+    if (!recorder.isRecording) {
+      throw new Error('Nenhuma gravação em andamento.');
+    }
+
     setAppState('processing');
     await recorder.stop();
     const uri = recorder.uri;
