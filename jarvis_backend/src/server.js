@@ -11,6 +11,10 @@ import { startKnowledgeScraper } from "./scraper/knowledgeScraper.js";
 import { startDisasterRecoveryCron } from "./tools/disasterRecoveryTool.js";
 import { confirmationBroker, resolveConfirmation } from "./security/confirmationBroker.js";
 import { getProfile, updateProfile } from "./memory/profileManager.js";
+import { startBriefing } from "./proactive/briefing.js";
+import { startMonitor } from "./proactive/monitor.js";
+import { startFollowup } from "./proactive/followup.js";
+import { startWeekly } from "./proactive/weekly.js";
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -142,4 +146,8 @@ httpServer.listen(PORT, () => {
   logger.info(`J.A.R.V.I.S server (Express + Socket.io) rodando na porta ${PORT}.`);
   startKnowledgeScraper();
   startDisasterRecoveryCron();
+  startBriefing();
+  startMonitor();
+  startFollowup();
+  startWeekly();
 });

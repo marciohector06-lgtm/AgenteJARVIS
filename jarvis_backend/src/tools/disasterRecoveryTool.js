@@ -7,6 +7,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { logger } from "../logger.js";
 import { guardExecution } from "../security/guardExecution.js";
+import { notifyTelegram } from "../proactive/telegramNotifier.js";
 
 const require = createRequire(import.meta.url);
 const archiver = require("archiver");
@@ -186,6 +187,7 @@ async function runScheduledBackup() {
     logger.info(`disaster_recovery_tool cron: backup automático concluído -> ${zipPath} (${sizeBytes} bytes)`);
   } catch (error) {
     logger.error(`disaster_recovery_tool cron: falha no backup automático: ${error.message}`);
+    await notifyTelegram(`🔴 Alerta: o backup automático falhou.\n\nErro: ${error.message}`);
   }
 }
 

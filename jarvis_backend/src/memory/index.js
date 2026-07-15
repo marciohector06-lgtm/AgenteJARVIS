@@ -19,6 +19,9 @@ const insertTurn = db.prepare(
 const selectPage = db.prepare(
   "SELECT role, content, createdAt FROM sessions WHERE sessionId = ? ORDER BY id DESC LIMIT ? OFFSET ?"
 );
+const selectSince = db.prepare(
+  "SELECT role, content, createdAt FROM sessions WHERE sessionId = ? AND createdAt >= ? ORDER BY id ASC"
+);
 
 export function saveMemory(userId, role, text) {
   insertTurn.run(String(userId), role, text, Date.now());
@@ -27,6 +30,15 @@ export function saveMemory(userId, role, text) {
 export function getHistory(userId, limit = 20, offset = 0) {
   const rows = selectPage.all(String(userId), limit, offset);
   return rows.reverse().map((row) => ({
+    role: row.role,
+    text: row.content,
+    timestamp: row.createdAt,
+  }));
+}
+
+export function getHistorySince(userId, sinceTimestamp) {
+  const rows = selectSince.all(String(userId), sinceTimestamp);
+  return rows.map((row) => ({
     role: row.role,
     text: row.content,
     timestamp: row.createdAt,
@@ -83,4 +95,20 @@ export async function recallMemory(query, nResults = 5) {
   });
 
   return results.documents[0] || [];
+}
+
+export async function getRecentKnowledge(sinceISODate) {
+  const collection = await getCollection();
+  const count = await collection.count();
+  if (count === 0) return [];
+
+  const results = await collection.get({
+    where: { date: { $gte: sinceISODate } },
+    include: ["documents", "metadatas"],
+  });
+
+  return results.ids.map((id, i) => ({
+    document: results.documents[i],
+    metadata: results.metadatas[i],
+  }));
 }
