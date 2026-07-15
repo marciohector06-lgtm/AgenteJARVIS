@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "start:bg": "pm2 start src/index.js --name jarvis-satellite",
+    "logs": "pm2 logs jarvis-satellite",
+    "stop": "pm2 stop jarvis-satellite"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

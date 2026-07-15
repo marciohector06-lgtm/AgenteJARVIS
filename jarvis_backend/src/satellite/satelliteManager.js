@@ -3,7 +3,10 @@ import Database from "better-sqlite3";
 import { logger } from "../logger.js";
 
 const HEARTBEAT_STALE_MS = 90_000;
-const COMMAND_TIMEOUT_MS = 15_000;
+// Comandos destrutivos no satélite pedem autorização de volta ao cérebro
+// (POST /satellite/authorize), que pode aguardar até os 120s do timeout de
+// confirmationBroker — este timeout precisa ser maior que aquele com folga.
+const COMMAND_TIMEOUT_MS = 130_000;
 
 const db = new Database(process.env.SQLITE_PATH || "./jarvis.db");
 db.exec(`
@@ -88,6 +91,11 @@ export function listSatellites() {
 
 export function getSatellite(id) {
   return rowToSatellite(selectSatellite.get(id));
+}
+
+export function verifySatelliteToken(id, token) {
+  const row = selectSatellite.get(id);
+  return Boolean(row && row.token === token);
 }
 
 export async function sendToSatellite(satelliteId, tool, params) {

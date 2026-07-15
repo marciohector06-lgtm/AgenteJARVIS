@@ -1,38 +1,8 @@
-import snmp from "net-snmp";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { networkPingTool } from "./networkPing.js";
-import { serverStatusTool } from "./serverStatus.js";
-import { wakeOnLanTool } from "./wakeOnLan.js";
+import { pingHost, getServerStatus, wakeOnLan, snmpGet } from "../../../jarvis_shared/src/network.js";
 import { logger } from "../logger.js";
-
-function snmpGet(host, oid, community) {
-  return new Promise((resolve, reject) => {
-    const session = snmp.createSession(host, community || "public");
-
-    session.get([oid], (error, varbinds) => {
-      session.close();
-
-      if (error) return reject(error);
-
-      const varbind = varbinds[0];
-      if (snmp.isVarbindError(varbind)) {
-        return reject(new Error(snmp.varbindError(varbind)));
-      }
-
-      resolve({
-        oid: varbind.oid,
-        type: snmp.ObjectType[varbind.type] || String(varbind.type),
-        value: varbind.value.toString(),
-      });
-    });
-
-    session.on("error", (error) => {
-      session.close();
-      reject(error);
-    });
-  });
-}
+import { guardExecution } from "../security/guardExecution.js";
 
 export const infraMonitorTool = tool(
   async ({ action, host, mac, oid, community }) => {
@@ -41,21 +11,20 @@ export const infraMonitorTool = tool(
     try {
       if (action === "ping") {
         if (!host) return "host é obrigatório para action='ping'.";
-        const result = await networkPingTool.invoke({ target: host });
+        const result = await pingHost(host);
         return JSON.stringify({ action, host, timestamp, result });
       }
 
       if (action === "status") {
         if (!host) return "host é obrigatório para action='status'.";
         const url = /^https?:\/\//i.test(host) ? host : `http://${host}`;
-        const result = await serverStatusTool.invoke({ url });
+        const result = await getServerStatus(url);
         return JSON.stringify({ action, host, timestamp, result });
       }
 
       if (action === "wol") {
         if (!mac) return "mac é obrigatório para action='wol'.";
-        // wakeOnLanTool já passa por guardExecution internamente — não embrulhar de novo aqui.
-        const result = await wakeOnLanTool.invoke({ macAddress: mac });
+        const result = await guardExecution(`Enviar Wake-on-LAN para ${mac}`, { destructive: true }, () => wakeOnLan(mac));
         logger.info(`infra_monitor_tool action=wol mac=${mac}`);
         return JSON.stringify({ action, mac, timestamp, result });
       }

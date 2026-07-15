@@ -9,7 +9,7 @@ import { textToSpeech } from "./audio/tts.js";
 import { logger } from "./logger.js";
 import { startKnowledgeScraper } from "./scraper/knowledgeScraper.js";
 import { startDisasterRecoveryCron } from "./tools/disasterRecoveryTool.js";
-import { confirmationBroker, resolveConfirmation } from "./security/confirmationBroker.js";
+import { confirmationBroker, requestConfirmation, resolveConfirmation } from "./security/confirmationBroker.js";
 import { getProfile, updateProfile } from "./memory/profileManager.js";
 import { startBriefing } from "./proactive/briefing.js";
 import { startMonitor } from "./proactive/monitor.js";
@@ -18,7 +18,13 @@ import { startWeekly } from "./proactive/weekly.js";
 import { analyzeMedia } from "./media/mediaAnalyzer.js";
 import { buildDashboard } from "./dashboard/index.js";
 import { isKillSwitchActive, setKillSwitch } from "./security/killSwitch.js";
-import { registerSatellite, recordHeartbeat, listSatellites, startStaleSweep } from "./satellite/satelliteManager.js";
+import {
+  registerSatellite,
+  recordHeartbeat,
+  listSatellites,
+  verifySatelliteToken,
+  startStaleSweep,
+} from "./satellite/satelliteManager.js";
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -71,6 +77,38 @@ app.post("/satellite/heartbeat", (req, res) => {
   }
 
   return res.json({ ok: true });
+});
+
+// Chamado pelo satélite antes de executar uma capacidade destrutiva
+// localmente — o próprio satélite não tem UI de confirmação, então a decisão
+// (kill switch / REQUIRE_CONFIRM / prompt no app) acontece aqui, no cérebro,
+// reaproveitando o mesmo confirmationBroker que guardExecution usa.
+app.post("/satellite/authorize", async (req, res) => {
+  const { id, token, description } = req.body || {};
+
+  if (!id || !token || !description) {
+    return res.status(400).json({ error: "id, token e description são obrigatórios." });
+  }
+
+  if (!verifySatelliteToken(id, token)) {
+    return res.status(401).json({ error: "Satélite desconhecido ou token inválido." });
+  }
+
+  if (isKillSwitchActive()) {
+    logger.warn(`satellite authorize: BLOQUEADO pelo kill switch: "${description}" (satelliteId=${id})`);
+    return res.json({ approved: false, reason: "kill_switch" });
+  }
+
+  if (process.env.REQUIRE_CONFIRM !== "true") {
+    return res.json({ approved: true });
+  }
+
+  logger.warn(`satellite authorize: comando destrutivo aguardando confirmação: "${description}" (satelliteId=${id})`);
+  const approved = await requestConfirmation("device", description);
+  logger.info(
+    `satellite authorize: comando "${description}" ${approved ? "CONFIRMADO" : "NEGADO/expirado"} (satelliteId=${id})`
+  );
+  return res.json({ approved });
 });
 
 const httpServer = http.createServer(app);

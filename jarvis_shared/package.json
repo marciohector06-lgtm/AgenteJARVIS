@@ -1,0 +1,13 @@
+{
+  "name": "jarvis-shared-tools",
+  "version": "1.0.0",
+  "description": "Lógica de execução local (IoT, rede, execução remota) compartilhada entre jarvis_backend e jarvis_satellite",
+  "main": "src/index.js",
+  "type": "module",
+  "dependencies": {
+    "mqtt": "^5.15.2",
+    "net-snmp": "^3.26.3",
+    "ssh2": "^1.17.0",
+    "wake_on_lan": "^1.0.0"
+  }
+}

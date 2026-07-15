@@ -1,6 +1,6 @@
-import wol from "wake_on_lan";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { wakeOnLan } from "../../../jarvis_shared/src/network.js";
 import { logger } from "../logger.js";
 import { guardExecution } from "../security/guardExecution.js";
 
@@ -12,17 +12,15 @@ export const wakeOnLanTool = tool(
       return `Endereço MAC inválido: "${macAddress}". Use o formato XX:XX:XX:XX:XX:XX.`;
     }
 
-    return guardExecution(`Enviar Wake-on-LAN para ${macAddress}`, { destructive: true }, () => {
-      return new Promise((resolve) => {
-        wol.wake(macAddress, (error) => {
-          logger.info(`wake_on_lan mac=${macAddress} resultado=${error ? "erro" : "enviado"}`);
-          resolve(
-            error
-              ? `Falha ao enviar magic packet para ${macAddress}: ${error.message}`
-              : `Magic packet enviado para ${macAddress}. A máquina deve ligar em alguns segundos, se o Wake-on-LAN estiver habilitado na BIOS/placa de rede.`
-          );
-        });
-      });
+    return guardExecution(`Enviar Wake-on-LAN para ${macAddress}`, { destructive: true }, async () => {
+      try {
+        const result = await wakeOnLan(macAddress);
+        logger.info(`wake_on_lan mac=${macAddress} resultado=enviado`);
+        return result;
+      } catch (error) {
+        logger.info(`wake_on_lan mac=${macAddress} resultado=erro`);
+        return error.message;
+      }
     });
   },
   {
