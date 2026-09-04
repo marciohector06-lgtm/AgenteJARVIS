@@ -6,3 +6,5 @@ jarvis.db-shm
 jarvis.db-wal
 logs/
 chroma-data/
+.wwebjs_auth/
+.wwebjs_cache/

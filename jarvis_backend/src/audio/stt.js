@@ -1,6 +1,8 @@
 export async function transcribeAudio(audioBuffer, mimeType = "audio/webm") {
   if (!process.env.OPENAI_API_KEY) {
-    return "STT não configurado";
+    throw new Error(
+      "Transcrição de áudio (STT) não configurada: defina OPENAI_API_KEY no .env do jarvis_backend."
+    );
   }
 
   const formData = new FormData();

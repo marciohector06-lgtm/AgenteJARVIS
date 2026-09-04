@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { ChromaClient, GoogleGenerativeAiEmbeddingFunction } from "chromadb";
+import { logger } from "../logger.js";
 
 const db = new Database(process.env.SQLITE_PATH || "./jarvis.db");
 db.exec(`
@@ -85,16 +86,21 @@ export async function saveKnowledge(text, metadata) {
 }
 
 export async function recallMemory(query, nResults = 5) {
-  const collection = await getCollection();
-  const count = await collection.count();
-  if (count === 0) return [];
+  try {
+    const collection = await getCollection();
+    const count = await collection.count();
+    if (count === 0) return [];
 
-  const results = await collection.query({
-    queryTexts: [query],
-    nResults,
-  });
+    const results = await collection.query({
+      queryTexts: [query],
+      nResults,
+    });
 
-  return results.documents[0] || [];
+    return results.documents[0] || [];
+  } catch (error) {
+    logger.warn(`memory: ChromaDB indisponível, seguindo sem memória RAG (${error.message})`);
+    return [];
+  }
 }
 
 export async function getRecentKnowledge(sinceISODate) {

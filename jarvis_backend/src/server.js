@@ -11,10 +11,6 @@ import { startKnowledgeScraper } from "./scraper/knowledgeScraper.js";
 import { startDisasterRecoveryCron } from "./tools/disasterRecoveryTool.js";
 import { confirmationBroker, requestConfirmation, resolveConfirmation } from "./security/confirmationBroker.js";
 import { getProfile, updateProfile } from "./memory/profileManager.js";
-import { startBriefing } from "./proactive/briefing.js";
-import { startMonitor } from "./proactive/monitor.js";
-import { startFollowup } from "./proactive/followup.js";
-import { startWeekly } from "./proactive/weekly.js";
 import { analyzeMedia } from "./media/mediaAnalyzer.js";
 import { buildDashboard } from "./dashboard/index.js";
 import { isKillSwitchActive, setKillSwitch } from "./security/killSwitch.js";
@@ -277,10 +273,17 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, () => {
   logger.info(`J.A.R.V.I.S server (Express + Socket.io) rodando na porta ${PORT}.`);
   startKnowledgeScraper();
-  startDisasterRecoveryCron();
-  startBriefing();
-  startMonitor();
-  startFollowup();
-  startWeekly();
+
+  if (process.env.BACKUP_PASSWORD && process.env.BACKUP_DESTINATION) {
+    startDisasterRecoveryCron();
+  } else {
+    logger.warn(
+      "disaster_recovery_tool: backup automático desabilitado (defina BACKUP_PASSWORD e BACKUP_DESTINATION no .env pra ativar)"
+    );
+  }
+
+  // briefing/monitor/followup/weekly NÃO são iniciados aqui: eles mandam
+  // notificação via WhatsApp, e o client singleton do WhatsApp só existe no
+  // processo jarvis-whatsapp (src/bot/whatsapp.js) — ver lá.
   startStaleSweep();
 });

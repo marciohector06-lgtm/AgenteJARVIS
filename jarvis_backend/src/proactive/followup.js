@@ -3,7 +3,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { logger } from "../logger.js";
 import { getProfileFacts } from "../memory/profileManager.js";
-import { notifyTelegram } from "./telegramNotifier.js";
+import { notifyWhatsApp } from "./whatsappNotifier.js";
 import { MODEL_FALLBACK_CHAIN, isQuotaError } from "../agent/modelFallback.js";
 
 const CRON_SCHEDULE = "0 18 * * *";
@@ -64,12 +64,12 @@ ${listText}
 Escreva uma mensagem curta e direta (máximo 100 palavras) cobrando gentilmente o progresso, sem ser passivo-agressivo — o foco é ajudar a destravar, não culpar.`;
 
     const text = await invokeFollowupModel(prompt);
-    const sent = await notifyTelegram(`📋 Follow-up\n\n${text}`);
+    const sent = await notifyWhatsApp(`📋 Follow-up\n\n${text}`);
 
     if (sent) {
       logger.info(`followup: enviado, ${stale.length} item(ns) parado(s)`);
     } else {
-      logger.error("followup: gerado mas NÃO foi entregue no Telegram");
+      logger.error("followup: gerado mas NÃO foi entregue no WhatsApp");
     }
   } catch (error) {
     logger.error(`followup: erro: ${error.message}`);
