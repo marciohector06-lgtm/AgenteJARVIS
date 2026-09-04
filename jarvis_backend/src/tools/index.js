@@ -21,6 +21,16 @@ import { smartIoTTool } from "./smartIoTTool.js";
 import { disasterRecoveryTool } from "./disasterRecoveryTool.js";
 import { copyGeneratorTool } from "./copyGeneratorTool.js";
 import { satelliteDeviceControlTool } from "./satelliteDeviceControlTool.js";
+import { windowsRemoteTool } from "./windowsRemoteTool.js";
+import { windowsCleanupTool } from "./windowsCleanupTool.js";
+import { tailscaleManagerTool } from "./tailscaleManagerTool.js";
+import { networkScanTool } from "./networkScanTool.js";
+import { intelbrasManagerTool } from "./intelbrasManagerTool.js";
+import { metaAdsTool } from "./metaAdsTool.js";
+import { vercelTool } from "./vercelTool.js";
+import { supabaseTool } from "./supabaseTool.js";
+import { promptSellTool } from "./promptSellTool.js";
+import { tiktokShopTool } from "./tiktokShopTool.js";
 
 const getSystemTimeTool = tool(
   async () => {
@@ -78,4 +88,14 @@ export const tools = [
   disasterRecoveryTool,
   copyGeneratorTool,
   satelliteDeviceControlTool,
+  windowsRemoteTool,
+  windowsCleanupTool,
+  tailscaleManagerTool,
+  networkScanTool,
+  intelbrasManagerTool,
+  metaAdsTool,
+  vercelTool,
+  supabaseTool,
+  promptSellTool,
+  tiktokShopTool,
 ];

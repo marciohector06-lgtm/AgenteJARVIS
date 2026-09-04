@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";
-import { controlSmartIoT, monitorInfra } from "../../jarvis_shared/src/index.js";
+import { controlSmartIoT, monitorInfra, scanNetwork } from "../../jarvis_shared/src/index.js";
 import { remoteExecute } from "../../jarvis_shared/src/remoteExec.js";
 import { createRemoteGuard } from "./remoteGuard.js";
 
@@ -62,6 +62,13 @@ const capabilities = {
     isDestructive: (params) => params.action === "wol",
     describe: (params) => (params.action === "wol" ? `Enviar Wake-on-LAN para ${params.mac}` : `infra_monitor: ${params.action}`),
     handler: (params) => monitorInfra(params),
+  },
+  network_scan: {
+    // Só lê a rede (ping sweep + tabela ARP), não muda estado de nenhum
+    // dispositivo — não é destrutivo, não pede autorização do cérebro.
+    isDestructive: () => false,
+    describe: (params) => `Escanear rede local ${params.subnet}`,
+    handler: (params) => scanNetwork(params.subnet),
   },
 };
 
