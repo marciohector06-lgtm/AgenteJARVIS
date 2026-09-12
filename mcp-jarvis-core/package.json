@@ -1,0 +1,23 @@
+{
+  "name": "mcp-jarvis-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor MCP que expoe o jarvis_backend como ferramentas para clientes MCP",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-jarvis-core": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}

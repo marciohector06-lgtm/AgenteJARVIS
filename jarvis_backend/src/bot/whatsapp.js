@@ -12,6 +12,7 @@ import { startBriefing } from "../proactive/briefing.js";
 import { startMonitor } from "../proactive/monitor.js";
 import { startFollowup } from "../proactive/followup.js";
 import { startWeekly } from "../proactive/weekly.js";
+import { startWhatsappBridge } from "./whatsappBridge.js";
 
 const { Client, LocalAuth } = pkg;
 
@@ -275,6 +276,8 @@ export { client };
 export function isWhatsAppReady() {
   return isReady && Boolean(client.info);
 }
+
+startWhatsappBridge({ client, isReady: isWhatsAppReady });
 
 process.once("SIGINT", async () => {
   await client.destroy().catch(() => {});

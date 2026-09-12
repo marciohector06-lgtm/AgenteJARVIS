@@ -22,7 +22,7 @@ function runTailscaleCli(args) {
   });
 }
 
-async function listDevices() {
+export async function listDevices() {
   const { code, stdout, stderr } = await runTailscaleCli(["status", "--json"]);
 
   if (code !== 0) {

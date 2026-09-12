@@ -23,6 +23,7 @@ import {
   startStaleSweep,
 } from "./satellite/satelliteManager.js";
 import { recordNetworkContext } from "./satellite/knownNetworks.js";
+import { createApiRouter } from "./api/index.js";
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -30,6 +31,7 @@ const DEVICE_PIN = process.env.DEVICE_PIN;
 
 const app = express();
 app.use(express.json());
+app.use("/api/v1", createApiRouter());
 
 app.post("/auth/token", (req, res) => {
   const { devicePin } = req.body || {};
