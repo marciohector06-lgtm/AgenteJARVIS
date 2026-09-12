@@ -36,6 +36,35 @@ Presentes no código; funcionamento real em produção não verificado nesta rec
 - `guardExecution` — exige confirmação (`REQUIRE_CONFIRM=true` por padrão) antes de tools destrutivas.
 - `killSwitch`, `confirmationBroker`, `sessionContext` — implementados em `src/security/`.
 
+## Camada de automação MCP + Agent SDK (12/09/2026)
+
+### Premissa do plano original que não se confirmou
+
+O plano assumia que o servidor MCP seria "uma casca fina sobre a API HTTP que o jarvis_backend já expõe". **Essa API não existia.** O backend tinha 4 rotas (`/auth/token` e três de satélite), nenhuma ligada a WhatsApp, rede, memória ou negócio, e nenhuma rota Express validava JWT. Também não existia catálogo de comandos remotos: o sistema aceitava comando shell arbitrário em máquina remota. As duas coisas tiveram de ser construídas antes de o servidor MCP fazer sentido.
+
+### Concluído e testado
+
+- **API HTTP `/api/v1` no cérebro** (`src/api/`) — autenticação JWT, status das clínicas, catálogo e execução de comandos remotos, status de integrações, busca na memória, leitura de kill switch e histórico de WhatsApp.
+- **Ponte de processo para o WhatsApp** (`src/bot/whatsappBridge.js`) — Express escutando só em loopback dentro do processo `jarvis-whatsapp`, porque o client do whatsapp-web.js é singleton daquele processo. Importá-lo do `server.js` abriria uma segunda sessão disputando a mesma pasta `LocalAuth` e duplicaria os crons proativos.
+- **Catálogo fechado de comandos remotos** (`src/api/remoteCommandCatalog.js`) — 9 comandos de string fixa, 5 de leitura e 4 destrutivos.
+- **Servidor MCP `mcp-jarvis-core`** — 8 ferramentas, autenticação PIN→JWT com refresh em 401, timeout de 130s nas chamadas que podem aguardar a confirmação humana de 120s.
+- **Hook PreToolUse** (`claude-automation/hooks/`) — política pura separada do adaptador de stdin, para o supervisor Python reusar a mesma regra por subprocesso em vez de duplicá-la.
+- **Supervisor** (`claude-automation/supervisor/`) — três subagentes com ferramentas disjuntas por domínio, teto de turnos e teto de custo.
+- **Plugin instalável** — `.claude-plugin/plugin.json` na raiz do repositório, empacotando servidor MCP, hook e três comandos de teste.
+
+**47 testes automatizados passando**, nenhum com efeito real: 12 do hook, 9 de integração MCP sobre stdio contra backend simulado, 15 de invariantes do backend, 11 do supervisor.
+
+### Correções de comportamento embutidas
+
+- O casamento dos PCs monitorados agora também compara IP do Tailscale. Antes, comparava só hostname, então uma máquina configurada como `nome:100.x.x.x` aparecia como offline mesmo ligada.
+- O parser de `MONITORED_WINDOWS_PCS` deixou de truncar host com porta ou IPv6.
+
+### Pendente de credencial ou de confirmação humana
+
+- **Login do CLI do Agent SDK**: o supervisor não conseguiu rodar as três perguntas de teste ao vivo (`Not logged in`). A lógica do hook foi verificada sem depender disso.
+- **`WHATSAPP_BRIDGE_TOKEN`, `WINDOWS_REMOTE_USERNAME`, `WINDOWS_REMOTE_PASSWORD`**: não existem no `.env.example`. Sem eles, envio de WhatsApp e execução remota respondem erro explícito em vez de falhar em silêncio.
+- **Nenhum envio real de WhatsApp nem comando remoto real foi executado** — aguardam confirmação explícita.
+
 ## Pendências / o que não dá pra confirmar só lendo o código
 
 - Quais das 30 tools já foram efetivamente testadas/usadas em produção vs. só implementadas.

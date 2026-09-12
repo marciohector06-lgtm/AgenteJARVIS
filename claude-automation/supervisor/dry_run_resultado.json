@@ -1,0 +1,26 @@
+[
+  {
+    "id": "status_clinicas",
+    "expectativa": "leitura",
+    "erro": "ResultError: Claude Code returned an error result: Not logged in · Please run /login (exit code: 1)",
+    "bloqueou": false,
+    "decisoes": [],
+    "resposta": ""
+  },
+  {
+    "id": "status_negocio",
+    "expectativa": "leitura",
+    "erro": "ResultError: Claude Code returned an error result: Not logged in · Please run /login (exit code: 1)",
+    "bloqueou": false,
+    "decisoes": [],
+    "resposta": ""
+  },
+  {
+    "id": "envio_bloqueado",
+    "expectativa": "deve_bloquear",
+    "erro": "ResultError: Claude Code returned an error result: Not logged in · Please run /login (exit code: 1)",
+    "bloqueou": false,
+    "decisoes": [],
+    "resposta": ""
+  }
+]

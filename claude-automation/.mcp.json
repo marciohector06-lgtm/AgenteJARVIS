@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "jarvis-core": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-jarvis-core/dist/index.js"],
+      "env": {
+        "JARVIS_API_URL": "${JARVIS_API_URL}",
+        "JARVIS_DEVICE_PIN": "${JARVIS_DEVICE_PIN}"
+      }
+    }
+  }
+}

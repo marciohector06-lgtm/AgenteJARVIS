@@ -1,0 +1,12 @@
+{
+  "name": "jarvis-automation",
+  "displayName": "JARVIS Automation",
+  "version": "0.1.0",
+  "description": "Expõe o cérebro do JARVIS como ferramentas MCP (WhatsApp, rede das clínicas, integrações de negócio, memória) com um hook PreToolUse que bloqueia ações irreversíveis sem confirmação explícita.",
+  "author": {
+    "name": "Márcio — H&M Engenharia e Tecnologia"
+  },
+  "hooks": "./claude-automation/hooks/hooks.json",
+  "mcpServers": "./claude-automation/.mcp.json",
+  "commands": "./claude-automation/commands/"
+}
