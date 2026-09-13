@@ -31,6 +31,7 @@ import { vercelTool } from "./vercelTool.js";
 import { supabaseTool } from "./supabaseTool.js";
 import { promptSellTool } from "./promptSellTool.js";
 import { tiktokShopTool } from "./tiktokShopTool.js";
+import { studioTool } from "./studioTool.js";
 
 const getSystemTimeTool = tool(
   async () => {
@@ -98,4 +99,5 @@ export const tools = [
   supabaseTool,
   promptSellTool,
   tiktokShopTool,
+  studioTool,
 ];

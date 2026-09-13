@@ -24,6 +24,7 @@ import {
 } from "./satellite/satelliteManager.js";
 import { recordNetworkContext } from "./satellite/knownNetworks.js";
 import { createApiRouter } from "./api/index.js";
+import { startStudio } from "./proactive/studio.js";
 import {
   studioEvents,
   pendingApprovals,
@@ -362,6 +363,10 @@ httpServer.listen(PORT, () => {
       "disaster_recovery_tool: backup automático desabilitado (defina BACKUP_PASSWORD e BACKUP_DESTINATION no .env pra ativar)"
     );
   }
+
+  // O Studio sobe aqui, e não no processo do WhatsApp, porque não depende do
+  // canal: a fila de aprovação vive no app, via HTTP autenticado.
+  startStudio();
 
   // briefing/monitor/followup/weekly NÃO são iniciados aqui: eles mandam
   // notificação via WhatsApp, e o client singleton do WhatsApp só existe no
