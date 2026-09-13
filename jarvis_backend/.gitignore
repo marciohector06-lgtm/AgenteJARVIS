@@ -8,3 +8,5 @@ logs/
 chroma-data/
 .wwebjs_auth/
 .wwebjs_cache/
+env.gerado
+studio-data/
