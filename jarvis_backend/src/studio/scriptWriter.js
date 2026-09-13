@@ -5,6 +5,7 @@ import { MODEL_FALLBACK_CHAIN, isQuotaError } from "../agent/modelFallback.js";
 
 const MAX_OUTPUT_TOKENS = 2048;
 const MAX_LENGTH_RETRIES = 3;
+const MAX_HOOK_RETRIES = 2;
 
 let scriptModelsCache = null;
 
@@ -160,6 +161,39 @@ function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+const STOPWORDS = new Set([
+  "para", "pelo", "pela", "como", "mais", "menos", "muito", "todo", "toda", "isso",
+  "esse", "essa", "aqui", "sobre", "entre", "quando", "porque", "outro", "outra",
+]);
+
+const STEM_LENGTH = 6;
+
+function significantStems(text) {
+  return String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= STEM_LENGTH && !STOPWORDS.has(word))
+    .map((word) => word.slice(0, STEM_LENGTH));
+}
+
+const PRODUCT_NAME_WORDS_CHECKED = 5;
+
+export function hookNamesProduct(hook, offer) {
+  const hookStems = new Set(significantStems(hook));
+  if (hookStems.size === 0) return null;
+
+  const nomeCurto = String(offer.productName || "").split(/\s+/).slice(0, PRODUCT_NAME_WORDS_CHECKED).join(" ");
+  const proibidos = [...significantStems(offer.category), ...significantStems(nomeCurto)];
+
+  for (const stem of proibidos) {
+    if (hookStems.has(stem)) return stem;
+  }
+
+  return null;
+}
+
 export function narrationWordCount(script) {
   return [script.hook, ...script.scenes.map((scene) => scene.narration), script.cta]
     .join(" ")
@@ -288,6 +322,27 @@ export async function generateScript({ offer, budget, minedHooks = [] }) {
 
   let script = await invokeScriptModel(userPrompt);
   assertUsableScript(script);
+
+  for (let attempt = 1; attempt <= MAX_HOOK_RETRIES; attempt++) {
+    const vazamento = hookNamesProduct(script.hook, offer);
+    if (!vazamento) break;
+
+    logger.warn(`studio scriptWriter: gancho nomeia o produto/categoria ("${vazamento}...") — refazendo o gancho ${attempt}/${MAX_HOOK_RETRIES}`);
+
+    const hookRetry = `${userPrompt}
+
+SEU GANCHO FOI REPROVADO: "${script.hook}"
+Ele revela o produto ou a categoria logo na abertura, e a regra é justamente o
+contrário — o gancho cria a tensão ANTES de revelar do que se trata. Quem está
+rolando o feed tem que parar sem ainda saber o que você vai vender.
+Reescreva o roteiro inteiro com um gancho que não contenha nenhuma palavra ligada a
+"${offer.category}" nem ao nome do produto. O produto só aparece a partir da cena 1.`;
+
+    const refeito = await invokeScriptModel(hookRetry);
+    assertUsableScript(refeito);
+    script = refeito;
+  }
+
   let chars = narrationLength(script);
 
   for (let attempt = 1; attempt <= MAX_LENGTH_RETRIES && !inRange(chars); attempt++) {
