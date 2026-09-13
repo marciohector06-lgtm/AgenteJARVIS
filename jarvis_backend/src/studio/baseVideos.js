@@ -7,6 +7,9 @@ import { BASE_VIDEOS_DIR } from "./paths.js";
 const VIDEO_EXTENSIONS = [".mp4", ".mov", ".avi", ".mkv", ".webm"];
 
 const CHARS_PER_SECOND = 13;
+const CHARS_PER_WORD = 5.8;
+const HOOK_MAX_WORDS = 10;
+const CTA_MAX_WORDS = 12;
 const MIN_BUDGET_RATIO = 0.85;
 const SHORT_HEADROOM_SECONDS = 2;
 const LONG_HEADROOM_SECONDS = 3;
@@ -75,12 +78,21 @@ export function narrationBudget(durationSeconds) {
   if (duration >= THREE_SCENE_SECONDS) sceneCount = 3;
   else if (duration >= TWO_SCENE_SECONDS) sceneCount = 2;
 
+  const totalWords = Math.floor(charBudget / CHARS_PER_WORD);
+  const hookWords = Math.min(HOOK_MAX_WORDS, Math.floor(totalWords * 0.25));
+  const ctaWords = Math.min(CTA_MAX_WORDS, Math.floor(totalWords * 0.25));
+  const wordsPerScene = Math.max(Math.floor((totalWords - hookWords - ctaWords) / sceneCount), 6);
+
   return {
     durationSeconds: duration,
     maxNarrationSeconds,
     charBudget,
     minCharBudget,
     sceneCount,
+    totalWords,
+    hookWords,
+    ctaWords,
+    wordsPerScene,
   };
 }
 

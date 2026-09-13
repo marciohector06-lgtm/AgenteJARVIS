@@ -14,16 +14,20 @@ async function waitForEnter(message) {
 
 async function detectLoggedAccount(page) {
   try {
-    await page.goto("https://www.tiktok.com/foryou", { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await sleep(5000);
+    await page.goto("https://www.tiktok.com/profile", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await sleep(6000);
 
-    return page.evaluate(() => {
-      const profileLink = document.querySelector('[data-e2e="nav-profile"]')?.getAttribute("href") || "";
-      const loginButton = document.querySelector('[data-e2e="top-login-button"]');
-      return { handle: profileLink.replace(/^\//, ""), stillLoggedOut: Boolean(loginButton) };
+    const fromUrl = new URL(page.url()).pathname.match(/^\/(@[\w.-]+)/)?.[1] || "";
+
+    const fromDom = await page.evaluate(() => {
+      const href = document.querySelector('[data-e2e="nav-profile"]')?.getAttribute("href") || "";
+      const match = href.match(/^\/(@[\w.-]+)/);
+      return match ? match[1] : "";
     });
+
+    return { handle: fromUrl || fromDom };
   } catch {
-    return { handle: "", stillLoggedOut: true };
+    return { handle: "" };
   }
 }
 
@@ -60,18 +64,24 @@ sua timeline estiver na tela, volte aqui e aperte ENTER.
 
     await waitForEnter("Aperte ENTER depois de concluir o login no TikTok... ");
 
-    const { handle, stillLoggedOut } = await detectLoggedAccount(page);
+    const { handle } = await detectLoggedAccount(page);
+    const account = handle || "desconhecida";
 
-    if (stillLoggedOut) {
-      console.log("\n⚠️  O TikTok ainda mostra o botão de entrar — o login não foi concluído.");
-      console.log("    Nada foi salvo. Rode o comando de novo quando estiver logado.\n");
-      return;
+    if (!handle) {
+      console.log("\n⚠️  Não consegui ler o @ da conta na página.");
+      console.log("    Vou salvar assim mesmo se a sessão estiver autenticada, mas");
+      console.log("    registrada como \"desconhecida\" — não invento o nome da conta.\n");
     }
 
-    const account = handle || MINING_ACCOUNT;
     const { path, cookieCount } = await saveSession(page, account);
 
-    console.log(`\n✅ Sessão salva: ${cookieCount} cookies da conta ${account}`);
+    console.log(`\n✅ Sessão salva: ${cookieCount} cookies`);
+    console.log(`   Conta detectada na página: ${account}`);
+
+    if (handle && MINING_ACCOUNT && handle.toLowerCase() !== MINING_ACCOUNT.toLowerCase()) {
+      console.log(`\n   ⚠️  O .env diz STUDIO_MINING_ACCOUNT=${MINING_ACCOUNT}, mas você logou em ${handle}.`);
+      console.log(`       Se ${handle} é a conta certa pra mineração, atualize o .env.`);
+    }
     console.log(`   Arquivo: ${path}`);
     console.log("   Fica fora do Git (studio-data/ está no .gitignore).");
     console.log("\n   Trate esse arquivo como senha: quem tiver ele entra na conta.\n");

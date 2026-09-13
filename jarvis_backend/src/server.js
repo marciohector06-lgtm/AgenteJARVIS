@@ -24,6 +24,14 @@ import {
 } from "./satellite/satelliteManager.js";
 import { recordNetworkContext } from "./satellite/knownNetworks.js";
 import { createApiRouter } from "./api/index.js";
+import {
+  studioEvents,
+  pendingApprovals,
+  recordDecision,
+  markPosted,
+  transition,
+  STATES,
+} from "./studio/pipeline.js";
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -153,6 +161,34 @@ confirmationBroker.on("request", ({ requestId, sessionId, description }) => {
   }
 });
 
+function studioQueuePayload() {
+  return {
+    videos: pendingApprovals().map((video) => ({
+      id: video.id,
+      offerId: video.offerId,
+      hook: video.script?.hook || null,
+      caption: video.script?.caption || null,
+      hashtags: video.script?.hashtags || [],
+      hookFormula: video.hookFormula,
+      createdAt: video.createdAt,
+    })),
+  };
+}
+
+function broadcastStudioQueue() {
+  io.emit("studio:queue", studioQueuePayload());
+}
+
+studioEvents.on("pending", (video) => {
+  logger.info(`studio: vídeo ${video.id} aguardando aprovação`);
+  broadcastStudioQueue();
+});
+
+studioEvents.on("decided", (video) => {
+  logger.info(`studio: vídeo ${video.id} decidido como ${video.state}`);
+  broadcastStudioQueue();
+});
+
 io.on("connection", (socket) => {
   logger.info(`Cliente conectado (sessionId: ${socket.sessionId})`);
 
@@ -264,6 +300,49 @@ io.on("connection", (socket) => {
 
     updateProfile(category, key, value, confidence);
     socket.emit("jarvis:profile", { profile: getProfile() });
+  });
+
+  socket.on("user:studio_queue", () => {
+    socket.emit("studio:queue", studioQueuePayload());
+  });
+
+  socket.on("user:studio_decision", ({ videoId, decision } = {}) => {
+    if (!videoId || !["approve", "reject"].includes(decision)) {
+      socket.emit("jarvis:error", { message: "user:studio_decision exige videoId e decision 'approve' ou 'reject'." });
+      return;
+    }
+
+    try {
+      recordDecision(videoId, decision);
+    } catch (error) {
+      logger.error(`studio: decisão falhou para ${videoId}: ${error.message}`);
+      socket.emit("jarvis:error", { message: error.message });
+    }
+  });
+
+  socket.on("user:studio_regenerate", ({ videoId } = {}) => {
+    if (!videoId) return;
+
+    try {
+      transition(videoId, STATES.DRAFT);
+      broadcastStudioQueue();
+    } catch (error) {
+      socket.emit("jarvis:error", { message: error.message });
+    }
+  });
+
+  socket.on("user:studio_posted", ({ videoId, url } = {}) => {
+    if (!videoId || !url) {
+      socket.emit("jarvis:error", { message: "user:studio_posted exige videoId e url do post." });
+      return;
+    }
+
+    try {
+      markPosted(videoId, url);
+      broadcastStudioQueue();
+    } catch (error) {
+      socket.emit("jarvis:error", { message: error.message });
+    }
   });
 
   socket.on("disconnect", () => {

@@ -11,6 +11,7 @@ import { findMonitoredPc } from "./monitoredPcs.js";
 import { getRemoteCommand, listRemoteCommands } from "./remoteCommandCatalog.js";
 import { BUSINESS_INTEGRATION_NAMES, getBusinessToolStatus } from "./businessStatus.js";
 import { fetchWhatsappStatus, sendWhatsappMessage } from "./whatsappBridgeClient.js";
+import { registerStudioRoutes } from "./studioRoutes.js";
 
 const DEFAULT_HISTORY_LIMIT = 20;
 const MAX_HISTORY_LIMIT = 100;
@@ -31,6 +32,8 @@ export function createApiRouter() {
   );
 
   router.use(requireDeviceJwt);
+
+  registerStudioRoutes(router);
 
   router.get("/security/kill-switch", (req, res) => res.json({ active: isKillSwitchActive() }));
 

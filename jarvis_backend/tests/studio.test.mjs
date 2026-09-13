@@ -122,3 +122,22 @@ test("oferta sem vídeo base falha com instrução de onde colocar o arquivo", (
   assert.throws(() => selectBaseVideo("oferta-vazia"), /Coloque ao menos um arquivo/);
 });
 
+
+test("orçamento de palavras cabe no tempo de fala do vídeo", () => {
+  const budget = narrationBudget(24);
+
+  assert.equal(budget.totalWords, 49);
+  assert.equal(budget.hookWords, 10);
+  assert.equal(budget.ctaWords, 12);
+  assert.equal(budget.wordsPerScene, 13);
+
+  const somaMaxima = budget.hookWords + budget.ctaWords + budget.wordsPerScene * budget.sceneCount;
+  assert.ok(somaMaxima <= budget.totalWords + 2, `as partes somam ${somaMaxima}, acima do teto ${budget.totalWords}`);
+});
+
+test("vídeo curto não recebe orçamento de palavras negativo", () => {
+  const budget = narrationBudget(9);
+
+  assert.ok(budget.wordsPerScene >= 6, "cena precisa de um mínimo de palavras para fazer sentido");
+  assert.ok(budget.totalWords > 0);
+});

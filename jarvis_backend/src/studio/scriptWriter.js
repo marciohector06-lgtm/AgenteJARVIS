@@ -4,15 +4,28 @@ import { logger } from "../logger.js";
 import { MODEL_FALLBACK_CHAIN, isQuotaError } from "../agent/modelFallback.js";
 
 const MAX_OUTPUT_TOKENS = 2048;
+const MAX_LENGTH_RETRIES = 3;
 
-const scriptModels = MODEL_FALLBACK_CHAIN.map(
-  (model) =>
-    new ChatGoogleGenerativeAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      model,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-    }),
-);
+let scriptModelsCache = null;
+
+function scriptModels() {
+  if (scriptModelsCache) return scriptModelsCache;
+
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY não configurada no .env — o Studio não consegue gerar roteiro.");
+  }
+
+  scriptModelsCache = MODEL_FALLBACK_CHAIN.map(
+    (model) =>
+      new ChatGoogleGenerativeAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        model,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      }),
+  );
+
+  return scriptModelsCache;
+}
 
 const SYSTEM_PROMPT = `
 Você é o roteirista do sistema SODRE.LUXE de UGC para TikTok Shop Brasil.
@@ -147,6 +160,14 @@ function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+export function narrationWordCount(script) {
+  return [script.hook, ...script.scenes.map((scene) => scene.narration), script.cta]
+    .join(" ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
 export function narrationLength(script) {
   return [script.hook, ...script.scenes.map((scene) => scene.narration), script.cta].join(" ").length;
 }
@@ -187,28 +208,38 @@ Link do produto (não falar o link, só referenciar como "ali embaixo" / "aqui e
 FÓRMULA DE GANCHO obrigatória para este vídeo (ver lista no system prompt): ${hookFormula}
 FORMATO DE CENAS obrigatório para este vídeo (ver lista no system prompt): ${sceneFormat}
 
-LIMITE DE DURAÇÃO — CRÍTICO: o vídeo base disponível tem ${budget.maxNarrationSeconds}s de espaço
-pra narração. Somando hook + narração de todas as cenas + CTA, o texto falado TEM
-QUE FICAR ENTRE ~${budget.minCharBudget} E ~${budget.charBudget} caracteres no total (~${budget.maxNarrationSeconds}s de fala).
-- Acima de ${budget.charBudget}: corta a narração no meio da fala no vídeo final.
-- Abaixo de ${budget.minCharBudget}: a fala termina cedo demais e o resto do vídeo fica
-  mudo/sem narração — igualmente errado, evite texto curto demais.
-Escreva cenas com narração completa (2-3 frases cada) até preencher essa faixa,
-nunca frases soltas de 1 linha só pra "cumprir tabela".
+LIMITE DE DURAÇÃO — A RESTRIÇÃO MAIS IMPORTANTE DESTE PEDIDO.
+O vídeo base tem ${budget.maxNarrationSeconds} segundos. A fala não cabe em mais que isso.
+
+Orçamento de PALAVRAS (conte antes de responder, palavra por palavra):
+- Hook: no máximo ${budget.hookWords} palavras.
+- Cada uma das ${budget.sceneCount} cenas: no máximo ${budget.wordsPerScene} palavras.
+- CTA: no máximo ${budget.ctaWords} palavras.
+- TOTAL DO VÍDEO: no máximo ${budget.totalWords} palavras. Esse teto é absoluto.
+
+Isso dá cerca de ${budget.minCharBudget} a ${budget.charBudget} caracteres no total.
+
+Antes de devolver o JSON, CONTE as palavras de hook + todas as cenas + CTA. Se passar
+de ${budget.totalWords}, corte e reescreva até caber. Não entregue estourado.
+
+Passar do teto NÃO é um detalhe: a narração fica maior que o vídeo e o último frame
+congela na tela por vários segundos, o que destrói o vídeo. Ficar muito abaixo também
+é errado (sobra vídeo mudo). Escreva denso e direto, sem encher linguiça.
 ${formatMinedHooks(minedHooks)}
 Gere o script seguindo o sistema SODRE.LUXE, com tom e vocabulário adequados ao nicho "${offer.category}".
   `.trim();
 }
 
 async function invokeScriptModel(userPrompt) {
+  const models = scriptModels();
   const messages = [new SystemMessage(SYSTEM_PROMPT), new HumanMessage(userPrompt)];
   let lastError;
 
-  for (let i = 0; i < scriptModels.length; i++) {
-    const isLastModel = i === scriptModels.length - 1;
+  for (let i = 0; i < models.length; i++) {
+    const isLastModel = i === models.length - 1;
 
     try {
-      const response = await scriptModels[i].invoke(messages);
+      const response = await models[i].invoke(messages);
       return extractJson(response.content);
     } catch (error) {
       lastError = error;
@@ -252,41 +283,47 @@ export async function generateScript({ offer, budget, minedHooks = [] }) {
 
   const userPrompt = buildUserPrompt({ offer, budget, hookFormula, sceneFormat, minedHooks });
 
+  const inRange = (chars) => chars >= budget.minCharBudget && chars <= budget.charBudget;
+  const distance = (chars) => (chars > budget.charBudget ? chars - budget.charBudget : budget.minCharBudget - chars);
+
   let script = await invokeScriptModel(userPrompt);
   assertUsableScript(script);
-
   let chars = narrationLength(script);
-  const inRange = chars >= budget.minCharBudget && chars <= budget.charBudget;
 
-  if (!inRange) {
+  for (let attempt = 1; attempt <= MAX_LENGTH_RETRIES && !inRange(chars); attempt++) {
     const tooShort = chars < budget.minCharBudget;
+    const words = narrationWordCount(script);
+
     logger.warn(
-      `studio scriptWriter: narração fora da faixa (${chars} chars, alvo ${budget.minCharBudget}-${budget.charBudget}) — pedindo ajuste`,
+      `studio scriptWriter: narração fora da faixa (${chars} chars / ${words} palavras, alvo ${budget.minCharBudget}-${budget.charBudget} chars) — ajuste ${attempt}/${MAX_LENGTH_RETRIES}`,
     );
 
     const retryPrompt = `${userPrompt}
 
-ATENÇÃO — SUA ÚLTIMA TENTATIVA FICOU ${tooShort ? "CURTA" : "LONGA"} DEMAIS:
-gerou ${chars} caracteres de narração total, e a faixa exigida é ${budget.minCharBudget}-${budget.charBudget}.
+SUA TENTATIVA ANTERIOR FOI REPROVADA POR TAMANHO.
+Você escreveu ${words} palavras (${chars} caracteres). O teto é ${budget.totalWords} palavras.
 ${
   tooShort
-    ? "Reescreva EXPANDINDO as cenas (mais detalhe concreto, mais frases) até entrar nessa faixa."
-    : "Reescreva CORTANDO conteúdo (menos detalhe, frases mais diretas, sem perder gancho nem CTA) até entrar nessa faixa."
+    ? `Ficou CURTA demais. Expanda até chegar perto de ${budget.totalWords} palavras, com detalhe concreto — não com enrolação.`
+    : `Ficou LONGA demais: ${words - budget.totalWords} palavras acima do teto. CORTE agressivamente. Mantenha o gancho e o CTA, enxugue as cenas. Frases curtas. Conte as palavras antes de responder.`
 }`;
 
     const retried = await invokeScriptModel(retryPrompt);
     assertUsableScript(retried);
 
     const retriedChars = narrationLength(retried);
-    if (Math.abs(retriedChars - budget.charBudget) < Math.abs(chars - budget.charBudget)) {
+
+    if (distance(retriedChars) < distance(chars)) {
       script = retried;
       chars = retriedChars;
     }
-
-    if (chars < budget.minCharBudget || chars > budget.charBudget) {
-      logger.warn(`studio scriptWriter: ainda fora da faixa após retry (${chars} chars) — seguindo assim mesmo`);
-    }
   }
 
-  return { script, hookFormula, sceneFormat, narrationChars: chars };
+  if (!inRange(chars)) {
+    logger.warn(
+      `studio scriptWriter: narração seguiu fora da faixa após ${MAX_LENGTH_RETRIES} ajustes (${chars} chars) — o render vai congelar o último frame`,
+    );
+  }
+
+  return { script, hookFormula, sceneFormat, narrationChars: chars, withinBudget: inRange(chars) };
 }
