@@ -53,3 +53,48 @@ test("número inteiro com sufixo não perde magnitude", () => {
   assert.equal(parseMetricNumber("2M"), 2_000_000);
   assert.equal(parseMetricNumber("9K"), 9_000);
 });
+
+test("legenda puramente promocional é descartada", async () => {
+  const { isPurelyPromotional } = await import("../src/studio/hookMiner.js");
+
+  assert.equal(isPurelyPromotional("Magnésio inositol em promoção aqui no Tik Tok Shop, preço imperdível"), true);
+  assert.equal(isPurelyPromotional("🚨 ÚLTIMAS HORAS para aproveitar a oferta relâmpago"), true);
+  assert.equal(isPurelyPromotional("#magnesio #suplemento #tiktokshopbrasil"), true);
+  assert.equal(isPurelyPromotional(""), true);
+});
+
+test("legenda com conteúdo real sobrevive, mesmo citando preço uma vez", async () => {
+  const { isPurelyPromotional } = await import("../src/studio/hookMiner.js");
+
+  assert.equal(isPurelyPromotional("Se você tomar magnésio todos os dias provavelmente essas 4 coisas vão acontecer"), false);
+  assert.equal(isPurelyPromotional("Quando eu vi demorei a acreditar 🤭"), false);
+  assert.equal(isPurelyPromotional("Achei a qualidade altíssima! Amei! O preço me surpreendeu"), false);
+});
+
+test("conversa por curtida mede provocação, não volume absoluto", async () => {
+  const { conversationRate } = await import("../src/studio/hookMiner.js");
+
+  assert.equal(conversationRate({ likes: 100, comments: 8, shares: 2 }), 10);
+  assert.equal(conversationRate({ likes: 0, comments: 50 }), 0);
+  assert.equal(conversationRate({ likes: 10_000, comments: 10 }), 0.1);
+});
+
+test("nunca dividir curtidas por curtidas — o card de busca mostra likes, não views", async () => {
+  const { conversationRate } = await import("../src/studio/hookMiner.js");
+
+  const taxa = conversationRate({ likes: 2286, comments: 30, shares: 12 });
+  assert.ok(taxa < 100, `taxa impossível: ${taxa}% — sinal de estar dividindo pela métrica errada`);
+});
+
+test("ranking prefere conversa alta a volume alto", async () => {
+  const { rankCandidates } = await import("../src/studio/hookMiner.js");
+
+  const ranked = rankCandidates([
+    { caption: "um vídeo com bastante texto de verdade aqui", likes: 500000, conversationRate: 0.5 },
+    { caption: "outro vídeo com narrativa real e contexto", likes: 4000, conversationRate: 12 },
+    { caption: "promoção imperdível desconto", likes: 900000, conversationRate: 30 },
+  ]);
+
+  assert.equal(ranked.length, 2, "a legenda promocional tinha que sair, mesmo com a maior taxa");
+  assert.equal(ranked[0].likes, 4000, "o de 4k likes e 12% deveria vencer o de 500k likes e 0,5%");
+});

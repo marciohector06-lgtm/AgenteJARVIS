@@ -4,7 +4,21 @@ import { logger } from "../logger.js";
 import { STUDIO_ROOT_DIR, ensureStudioDirs } from "./paths.js";
 
 const SESSION_FILE = join(STUDIO_ROOT_DIR, "tiktok-mining-session.json");
-const TIKTOK_ORIGINS = ["https://www.tiktok.com", "https://tiktok.com"];
+
+function belongsToTikTok(cookie) {
+  return String(cookie.domain || "").toLowerCase().includes("tiktok.com");
+}
+
+async function allTikTokCookies(page) {
+  const client = await page.createCDPSession();
+
+  try {
+    const { cookies } = await client.send("Network.getAllCookies");
+    return cookies.filter(belongsToTikTok);
+  } finally {
+    await client.detach().catch(() => {});
+  }
+}
 
 export function sessionPath() {
   return SESSION_FILE;
@@ -39,16 +53,24 @@ export function sessionStatus() {
     savedAt: session.savedAt,
     cookieCount: session.cookies.length,
     expiredCookies: expiring.length,
+    authenticated: session.cookies.some((cookie) => cookie.name === "sessionid"),
+    domains: [...new Set(session.cookies.map((cookie) => cookie.domain))].sort(),
   };
 }
 
 export async function saveSession(page, account) {
   ensureStudioDirs();
 
-  const cookies = await page.cookies(...TIKTOK_ORIGINS);
+  const cookies = await allTikTokCookies(page);
 
   if (cookies.length === 0) {
     throw new Error("Nenhum cookie do TikTok encontrado — o login não foi concluído.");
+  }
+
+  if (!cookies.some((cookie) => cookie.name === "sessionid")) {
+    throw new Error(
+      "Cookies capturados, mas sem 'sessionid' — a sessão não está autenticada de verdade e os painéis cairiam no login.",
+    );
   }
 
   writeFileSync(
@@ -66,7 +88,14 @@ export async function applySession(page) {
   const session = readSession();
   if (!session) return false;
 
-  await page.setCookie(...session.cookies);
+  const client = await page.createCDPSession();
+
+  try {
+    await client.send("Network.setCookies", { cookies: session.cookies });
+  } finally {
+    await client.detach().catch(() => {});
+  }
+
   logger.info(`studio session: sessão de ${session.account || "conta de mineração"} aplicada (${session.cookies.length} cookies)`);
 
   return true;

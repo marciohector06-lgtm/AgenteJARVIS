@@ -41,15 +41,15 @@ function extractCandidates() {
 
     let card = anchor;
     let caption = "";
-    let viewsRaw = "";
+    let likesRaw = "";
 
     for (let i = 0; i < 6 && card; i++) {
       const isCardBoundary = card.querySelectorAll('a[href*="/video/"]').length === 1;
       if (isCardBoundary) {
         caption = card.querySelector('[data-e2e="search-card-video-caption"]')?.textContent?.trim() || caption;
-        viewsRaw = card.querySelector('[data-e2e="video-views"]')?.textContent?.trim() || viewsRaw;
+        likesRaw = card.querySelector('[data-e2e="video-views"]')?.textContent?.trim() || likesRaw;
       }
-      if (caption && viewsRaw) break;
+      if (caption && likesRaw) break;
       card = card.parentElement;
     }
 
@@ -57,11 +57,62 @@ function extractCandidates() {
       videoUrl: href.startsWith("http") ? href : `https://www.tiktok.com${href}`,
       caption,
       author: match[1],
-      viewsRaw,
+      likesRaw,
     });
   }
 
   return results;
+}
+
+const PROMO_TERMS = [
+  "promoção",
+  "promocao",
+  "imperdível",
+  "imperdivel",
+  "desconto",
+  "oferta relâmpago",
+  "oferta relampago",
+  "últimas horas",
+  "ultimas horas",
+  "preço",
+  "preco",
+  "baratinho",
+  "aproveite",
+  "corre que",
+  "link na bio",
+  "cupom",
+  "frete grátis",
+  "frete gratis",
+];
+
+export function promoTermCount(caption = "") {
+  const text = String(caption).toLowerCase();
+  return PROMO_TERMS.filter((term) => text.includes(term)).length;
+}
+
+export function isPurelyPromotional(caption = "") {
+  const text = String(caption).trim();
+  if (!text) return true;
+
+  const withoutTags = text.replace(/#[\wÀ-ÿ]+/g, " ").replace(/\s+/g, " ").trim();
+  if (withoutTags.length < 12) return true;
+
+  return promoTermCount(withoutTags) >= 2;
+}
+
+export function conversationRate({ likes = 0, comments = 0, shares = 0 }) {
+  if (!likes || likes <= 0) return 0;
+  return Number((((comments + shares) / likes) * 100).toFixed(2));
+}
+
+export function rankCandidates(candidates) {
+  return [...candidates]
+    .filter((candidate) => !isPurelyPromotional(candidate.caption))
+    .sort((a, b) => {
+      const rateDiff = (b.conversationRate || 0) - (a.conversationRate || 0);
+      if (rateDiff !== 0) return rateDiff;
+      return (b.likes || 0) - (a.likes || 0);
+    });
 }
 
 export async function discoverCandidates(page, niche, { limit = 12, scrollRounds = 3 } = {}) {
@@ -102,16 +153,75 @@ export async function discoverCandidates(page, niche, { limit = 12, scrollRounds
       videoUrl: item.videoUrl,
       caption: item.caption,
       author: item.author || parsed.author,
-      views: parseMetricNumber(item.viewsRaw),
+      cardLikes: parseMetricNumber(item.likesRaw),
       niche,
     });
   }
 
-  candidates.sort((a, b) => b.views - a.views);
+  candidates.sort((a, b) => b.cardLikes - a.cardLikes);
 
   logger.info(`studio hookMiner: ${candidates.length} candidatos únicos para "${niche}"`);
 
   return candidates.slice(0, limit);
+}
+
+export async function enrichWithEngagement(page, candidates, { limit = 8 } = {}) {
+  const enriched = [];
+
+  for (const candidate of candidates.slice(0, limit)) {
+    try {
+      await page.goto(candidate.videoUrl, { waitUntil: "domcontentloaded", timeout: PAGE_TIMEOUT_MS });
+      await sleep(gaussianDelay(4000, 1200, 2000, 9000));
+
+      const metrics = await page.evaluate(() => {
+        const read = (...selectors) => {
+          for (const selector of selectors) {
+            const text = document.querySelector(selector)?.textContent?.trim();
+            if (text) return text;
+          }
+          return "";
+        };
+
+        return {
+          likes: read('[data-e2e="browse-like-count"]', '[data-e2e="like-count"]'),
+          comments: read('[data-e2e="browse-comment-count"]', '[data-e2e="comment-count"]'),
+          shares: read('[data-e2e="browse-share-count"]', '[data-e2e="share-count"]'),
+        };
+      });
+
+      const likes = parseMetricNumber(metrics.likes);
+      const comments = parseMetricNumber(metrics.comments);
+      const shares = parseMetricNumber(metrics.shares);
+
+      enriched.push({
+        ...candidate,
+        likes: likes || candidate.cardLikes,
+        comments,
+        shares,
+        conversationRate: conversationRate({ likes: likes || candidate.cardLikes, comments, shares }),
+      });
+    } catch (error) {
+      logger.warn(`studio hookMiner: falha ao medir ${candidate.videoUrl}: ${error.message.split("\n")[0]}`);
+      enriched.push({ ...candidate, likes: candidate.cardLikes, comments: 0, shares: 0, conversationRate: 0 });
+    }
+
+    await sleep(gaussianDelay(3500, 1200, 1500, 9000));
+  }
+
+  return enriched;
+}
+
+export async function mineNiche(page, niche, { discoverLimit = 20, measureLimit = 8 } = {}) {
+  const discovered = await discoverCandidates(page, niche, { limit: discoverLimit });
+
+  const editorial = discovered.filter((candidate) => !isPurelyPromotional(candidate.caption));
+  const dropped = discovered.length - editorial.length;
+
+  logger.info(`studio hookMiner: ${dropped} legenda(s) puramente promocional(is) descartada(s), ${editorial.length} seguem para medição`);
+
+  const enriched = await enrichWithEngagement(page, editorial, { limit: measureLimit });
+
+  return rankCandidates(enriched);
 }
 
 export async function withMinerBrowser(fn, { headless = true, requireSession = true } = {}) {
