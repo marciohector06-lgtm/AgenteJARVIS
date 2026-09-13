@@ -6,10 +6,13 @@ import { PinScreen } from './src/screens/PinScreen';
 import { MainScreen } from './src/screens/MainScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { StudioScreen } from './src/screens/StudioScreen';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [screen, setScreen] = useState<'main' | 'dashboard' | 'studio'>('main');
+
+  usePushNotifications(token, () => setScreen('studio'));
 
   useEffect(() => {
     (async () => {

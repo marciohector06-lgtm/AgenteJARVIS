@@ -1,3 +1,5 @@
+import { logger } from "../logger.js";
+
 const MAX_CHUNK_LENGTH = 200;
 const TTS_LANG = "pt-BR";
 const USER_AGENT =

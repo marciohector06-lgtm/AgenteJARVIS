@@ -4,6 +4,7 @@ import { logger } from "../logger.js";
 import { VIDEO_DIR } from "../studio/paths.js";
 import { getVideo, listRecent, pendingApprovals, recordDecision, markPosted, transition, STATES } from "../studio/pipeline.js";
 import { getOffer } from "../studio/offers.js";
+import { registerPushToken } from "../push/notifier.js";
 
 const CHUNK_SIZE = 1024 * 1024;
 
@@ -36,6 +37,16 @@ function summarize(video) {
 }
 
 export function registerStudioRoutes(router) {
+  router.post("/push/register", (req, res) => {
+    const { token, platform } = req.body || {};
+
+    try {
+      return res.json(registerPushToken(token, platform));
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  });
+
   router.get("/studio/pending", (req, res) => {
     try {
       return res.json({ videos: pendingApprovals().map(summarize) });

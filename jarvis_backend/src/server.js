@@ -25,6 +25,7 @@ import {
 import { recordNetworkContext } from "./satellite/knownNetworks.js";
 import { createApiRouter } from "./api/index.js";
 import { startStudio } from "./proactive/studio.js";
+import { notifyVideoReady } from "./push/notifier.js";
 import {
   studioEvents,
   pendingApprovals,
