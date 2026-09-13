@@ -71,3 +71,48 @@ O plano assumia que o servidor MCP seria "uma casca fina sobre a API HTTP que o 
 - Se alguma automação proativa (briefing/monitor/followup/weekly) já foi ativada em algum ambiente.
 - Status real da integração com os 13 PCs monitorados (`MONITORED_WINDOWS_PCS`) — depende de configuração de ambiente não visível no repositório.
 - Confirmar com Márcio se a "migração WhatsApp" mencionada anteriormente já está de fato concluída (o código sugere que sim) ou se há algo pendente que não aparece no código.
+
+## Studio — fábrica de conteúdo do TikTok Shop (13/09/2026)
+
+Migração do `tiktok_agente` para dentro do JARVIS. O projeto antigo tinha dois agentes: o documentado (Scout→Studio→Publisher→Analytics autônomo) e o real (produção manual por script). O primeiro nunca funcionou — três quebras de cadeia verificadas no código:
+
+- O Scout devolvia produto sem `productName` e o Studio abortava em 100% dos casos, então o ciclo automático nunca gerou um vídeo.
+- O Scout coletava legendas com hashtag, não produtos: 143 registros com preço, comissão e vendas zerados.
+- O Publisher nunca gravava `videoId`, então o Analytics não conseguia casar métrica com produto e `decisions` era sempre vazio.
+
+### O que existe hoje em `jarvis_backend/src/studio/`
+
+| Módulo | Papel |
+|---|---|
+| `paths.js` / `db.js` | diretórios e tabelas (`offers`, `videos`, `hooks_mined`, `hook_results`) |
+| `offers.js` | cadastro de oferta com `productName` obrigatório |
+| `baseVideos.js` | mede o vídeo e deriva duração de fala, orçamento de caracteres e de palavras |
+| `scriptWriter.js` | roteirista (system prompt portado) sobre `MODEL_FALLBACK_CHAIN` |
+| `voice.js` | narração na ElevenLabs, com backoff |
+| `render.js` | montagem no FFmpeg |
+| `browser.js` / `session.js` | navegador humanizado e sessão da conta de mineração |
+| `hookMiner.js` / `hookStore.js` | descoberta e armazenamento de ganchos |
+| `pipeline.js` | máquina de estados persistida |
+| `producer.js` / `measurement.js` | produção completa e medição pós-publicação |
+
+### Decisões que não se deduzem do código
+
+- **Legenda queimada foi removida a pedido do Márcio** — o vídeo de produto sai limpo. Há um teste de regressão que falha se algum filtro de texto (`subtitles`, `drawtext`, `ass`) voltar ao grafo do FFmpeg.
+- **A publicação no TikTok é sempre manual.** Não existe upload automatizado, de propósito: a conta que fatura já teve conteúdo recusado uma vez, e automação de post é o padrão que o TikTok penaliza.
+- **Duas contas separadas.** `@sodreshop3` minera; `@sodre.luxe` só publica e nunca entra em raspagem.
+- **A busca do TikTok não exige login** — bloqueia por fingerprint de dispositivo. Os cookies de rastreamento bastam. Sessão autenticada só seria necessária para o painel de produtos do afiliado, que segue pendente.
+- **O card de busca mostra curtidas, não views**, apesar do seletor se chamar `data-e2e="video-views"`. Ranquear por "views" ali estava dividindo curtidas por curtidas e dando 171% de engajamento. A métrica usada é conversa por curtida: `(comentários + compartilhamentos) / curtidas`.
+- **O orçamento do roteiro é em palavras, não em caracteres.** O modelo ignora limite em caracteres (gerou 512 num alvo de 286). Com teto por bloco — gancho 10, CTA 12, 13 por cena — passou a caber de primeira.
+- **`measurement.js` não raspa painel.** O Márcio cola o link do post no app e a medição lê as métricas públicas daquele vídeo. Resolve o buraco do `videoId` de um jeito que não apodrece quando o HTML do TikTok mudar.
+
+### Correções de ambiente encontradas no caminho
+
+- `jarvis_shared` nunca teve `npm install`, então `ssh2` não resolvia e `src/server.js` não subia.
+- Vários módulos constroem clientes de API no import (`profileManager`, `viralTrendSearch`), derrubando o processo inteiro quando falta qualquer chave. O `scriptWriter` foi escrito preguiçoso para não repetir o padrão; os outros seguem como estavam.
+
+### Pendente
+
+- `ELEVENLABS_API_KEY` — sem ela a narração não sai e nenhuma oferta fica "pronta".
+- Análise do painel de produtos do afiliado (quais vendem com poucos afiliados) — depende de login autenticado, que não completou.
+- Classificação dos ganchos minerados por IA: a descoberta funciona, a análise dos 3 primeiros segundos ainda não foi construída.
+- APK e acesso de fora de casa.
