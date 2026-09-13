@@ -59,12 +59,12 @@ async function requestSpeech(narration) {
 
       const detail = await response.text().catch(() => "");
       const error = new Error(`ElevenLabs respondeu ${response.status}: ${detail.slice(0, 200)}`);
+      error.retryable = isRetryableStatus(response.status);
 
-      if (!isRetryableStatus(response.status) || attempt === MAX_ATTEMPTS) throw error;
-      lastError = error;
+      throw error;
     } catch (error) {
       lastError = error;
-      if (attempt === MAX_ATTEMPTS) throw error;
+      if (error.retryable === false || attempt === MAX_ATTEMPTS) throw error;
     }
 
     const waitMs = BASE_BACKOFF_MS * 2 ** (attempt - 1);
