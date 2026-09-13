@@ -35,7 +35,8 @@
         {
           "fineLocationPermission": true
         }
-      ]
+      ],
+      "expo-video"
     ],
     "extra": {
       "eas": {

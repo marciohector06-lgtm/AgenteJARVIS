@@ -17,9 +17,10 @@ const STATUS_LABEL = {
 type Props = {
   token: string;
   onOpenDashboard: () => void;
+  onOpenStudio: () => void;
 };
 
-export function MainScreen({ token, onOpenDashboard }: Props) {
+export function MainScreen({ token, onOpenDashboard, onOpenStudio }: Props) {
   const { startRecording, stopRecording, playResponse, appState, setAppState } = useAudio();
   const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice');
   const [textValue, setTextValue] = useState('');
@@ -40,6 +41,7 @@ export function MainScreen({ token, onOpenDashboard }: Props) {
     sendKillSwitch,
     activeLocation,
     sendNetworkContext,
+    studioQueue,
   } = useSocket(token, handleResponse);
 
   const { detectNetwork } = useNetworkDetection();
@@ -105,9 +107,17 @@ export function MainScreen({ token, onOpenDashboard }: Props) {
           <Text style={styles.killSwitchText}>{isKillSwitchActive ? 'KILL SWITCH ON' : 'KILL SWITCH OFF'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={onOpenDashboard}>
-          <Text style={styles.dashboardLink}>DASHBOARD</Text>
-        </TouchableOpacity>
+        <View style={styles.topLinks}>
+          <TouchableOpacity onPress={onOpenStudio}>
+            <Text style={[styles.dashboardLink, studioQueue.length > 0 && styles.studioLinkAlert]}>
+              {studioQueue.length > 0 ? `STUDIO (${studioQueue.length})` : 'STUDIO'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={onOpenDashboard}>
+            <Text style={styles.dashboardLink}>DASHBOARD</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {locationLabel && (
@@ -198,6 +208,15 @@ const styles = StyleSheet.create({
     color: '#CCCCCC',
     fontFamily: 'monospace',
     fontSize: 10,
+  },
+  topLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  studioLinkAlert: {
+    color: '#00FF88',
+    fontWeight: 'bold',
   },
   dashboardLink: {
     color: '#00FFFF',

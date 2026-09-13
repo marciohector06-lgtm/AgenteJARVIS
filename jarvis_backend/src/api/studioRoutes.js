@@ -2,7 +2,7 @@ import { existsSync, statSync, createReadStream } from "node:fs";
 import { resolve } from "node:path";
 import { logger } from "../logger.js";
 import { VIDEO_DIR } from "../studio/paths.js";
-import { getVideo, listRecent, pendingApprovals } from "../studio/pipeline.js";
+import { getVideo, listRecent, pendingApprovals, recordDecision, markPosted, transition, STATES } from "../studio/pipeline.js";
 import { getOffer } from "../studio/offers.js";
 
 const CHUNK_SIZE = 1024 * 1024;
@@ -53,6 +53,45 @@ export function registerStudioRoutes(router) {
     } catch (error) {
       logger.error(`API studio: erro ao listar vídeos: ${error.stack || error.message}`);
       return res.status(500).json({ error: "Erro ao listar vídeos." });
+    }
+  });
+
+  router.post("/studio/video/:id/decision", (req, res) => {
+    const { decision } = req.body || {};
+
+    if (!["approve", "reject"].includes(decision)) {
+      return res.status(400).json({ error: "decision precisa ser 'approve' ou 'reject'." });
+    }
+
+    try {
+      return res.json({ video: summarize(recordDecision(req.params.id, decision)) });
+    } catch (error) {
+      logger.warn(`API studio: decisão recusada para ${req.params.id}: ${error.message}`);
+      return res.status(409).json({ error: error.message });
+    }
+  });
+
+  router.post("/studio/video/:id/regenerate", (req, res) => {
+    try {
+      return res.json({ video: summarize(transition(req.params.id, STATES.DRAFT)) });
+    } catch (error) {
+      logger.warn(`API studio: refazer recusado para ${req.params.id}: ${error.message}`);
+      return res.status(409).json({ error: error.message });
+    }
+  });
+
+  router.post("/studio/video/:id/posted", (req, res) => {
+    const { url } = req.body || {};
+
+    if (!url || !String(url).startsWith("http")) {
+      return res.status(400).json({ error: "url do post é obrigatória e precisa começar com http." });
+    }
+
+    try {
+      return res.json({ video: summarize(markPosted(req.params.id, String(url).trim())) });
+    } catch (error) {
+      logger.warn(`API studio: marcar publicado recusado para ${req.params.id}: ${error.message}`);
+      return res.status(409).json({ error: error.message });
     }
   });
 

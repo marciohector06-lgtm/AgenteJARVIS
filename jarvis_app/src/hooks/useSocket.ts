@@ -13,6 +13,16 @@ type ConfirmNeededPayload = {
   command: string;
 };
 
+export type StudioVideo = {
+  id: string;
+  offerId: string;
+  hook: string | null;
+  caption: string | null;
+  hashtags: string[];
+  hookFormula: string | null;
+  createdAt: number;
+};
+
 export type ActiveLocation = {
   location: string | null;
   satelliteId: string | null;
@@ -26,6 +36,7 @@ export function useSocket(token: string | null, onResponse: (payload: JarvisResp
   const [streamingText, setStreamingText] = useState('');
   const [isKillSwitchActive, setIsKillSwitchActive] = useState(false);
   const [activeLocation, setActiveLocation] = useState<ActiveLocation | null>(null);
+  const [studioQueue, setStudioQueue] = useState<StudioVideo[]>([]);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -56,6 +67,12 @@ export function useSocket(token: string | null, onResponse: (payload: JarvisResp
     socket.on('jarvis:active_location', (payload: ActiveLocation) => {
       setActiveLocation(payload);
     });
+
+    socket.on('studio:queue', ({ videos }: { videos: StudioVideo[] }) => {
+      setStudioQueue(videos || []);
+    });
+
+    socket.on('connect', () => socket.emit('user:studio_queue'));
 
     socket.on('jarvis:confirm_needed', ({ requestId, command }: ConfirmNeededPayload) => {
       Alert.alert('Confirmação necessária', command, [
@@ -96,6 +113,22 @@ export function useSocket(token: string | null, onResponse: (payload: JarvisResp
     socketRef.current?.emit('user:network_context', { ssid, subnet });
   }, []);
 
+  const refreshStudioQueue = useCallback(() => {
+    socketRef.current?.emit('user:studio_queue');
+  }, []);
+
+  const decideStudioVideo = useCallback((videoId: string, decision: 'approve' | 'reject') => {
+    socketRef.current?.emit('user:studio_decision', { videoId, decision });
+  }, []);
+
+  const regenerateStudioVideo = useCallback((videoId: string) => {
+    socketRef.current?.emit('user:studio_regenerate', { videoId });
+  }, []);
+
+  const markStudioPosted = useCallback((videoId: string, url: string) => {
+    socketRef.current?.emit('user:studio_posted', { videoId, url });
+  }, []);
+
   return {
     isConnected,
     sendAudio,
@@ -105,5 +138,10 @@ export function useSocket(token: string | null, onResponse: (payload: JarvisResp
     sendKillSwitch,
     activeLocation,
     sendNetworkContext,
+    studioQueue,
+    refreshStudioQueue,
+    decideStudioVideo,
+    regenerateStudioVideo,
+    markStudioPosted,
   };
 }

@@ -5,10 +5,11 @@ import { getPin, authenticate } from './src/services/auth';
 import { PinScreen } from './src/screens/PinScreen';
 import { MainScreen } from './src/screens/MainScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
+import { StudioScreen } from './src/screens/StudioScreen';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
-  const [screen, setScreen] = useState<'main' | 'dashboard'>('main');
+  const [screen, setScreen] = useState<'main' | 'dashboard' | 'studio'>('main');
 
   useEffect(() => {
     (async () => {
@@ -31,8 +32,14 @@ export default function App() {
         <PinScreen onSuccess={setToken} />
       ) : screen === 'dashboard' ? (
         <DashboardScreen token={token} onBack={() => setScreen('main')} />
+      ) : screen === 'studio' ? (
+        <StudioScreen token={token} onBack={() => setScreen('main')} />
       ) : (
-        <MainScreen token={token} onOpenDashboard={() => setScreen('dashboard')} />
+        <MainScreen
+          token={token}
+          onOpenDashboard={() => setScreen('dashboard')}
+          onOpenStudio={() => setScreen('studio')}
+        />
       )}
     </SafeAreaView>
   );

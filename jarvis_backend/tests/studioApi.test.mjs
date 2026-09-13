@@ -130,3 +130,46 @@ test("vídeo sem render responde 409 em vez de vazar caminho nulo", async () => 
   const res = await get(`/studio/video/${semRender.id}/file`);
   assert.equal(res.status, 409);
 });
+
+async function post(path, body) {
+  return fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+test("decisão inválida é recusada com 400 antes de tocar no estado", async () => {
+  const res = await post(`/studio/video/${videoComArquivo}/decision`, { decision: "talvez" });
+  assert.equal(res.status, 400);
+});
+
+test("aprovar pelo app move o vídeo e tira ele da fila", async () => {
+  const res = await post(`/studio/video/${videoComArquivo}/decision`, { decision: "approve" });
+  assert.equal(res.status, 200);
+
+  const { video } = await res.json();
+  assert.equal(video.state, "approved");
+
+  const fila = await (await get("/studio/pending")).json();
+  assert.ok(!fila.videos.some((v) => v.id === videoComArquivo), "vídeo aprovado não pode continuar na fila");
+});
+
+test("aprovar duas vezes responde 409 em vez de corromper o estado", async () => {
+  const res = await post(`/studio/video/${videoComArquivo}/decision`, { decision: "approve" });
+  assert.equal(res.status, 409);
+});
+
+test("marcar publicado exige url http", async () => {
+  const ruim = await post(`/studio/video/${videoComArquivo}/posted`, { url: "nao-e-url" });
+  assert.equal(ruim.status, 400);
+
+  const bom = await post(`/studio/video/${videoComArquivo}/posted`, {
+    url: "https://www.tiktok.com/@sodre.luxe/video/123",
+  });
+  assert.equal(bom.status, 200);
+
+  const { video } = await bom.json();
+  assert.equal(video.state, "posted");
+  assert.equal(video.postedUrl, "https://www.tiktok.com/@sodre.luxe/video/123");
+});
