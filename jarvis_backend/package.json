@@ -14,7 +14,9 @@
     "restart": "pm2 restart ecosystem.config.cjs",
     "logs": "pm2 logs",
     "logs:whatsapp": "pm2 logs jarvis-whatsapp",
-    "logs:server": "pm2 logs jarvis-server"
+    "logs:server": "pm2 logs jarvis-server",
+    "studio:login": "node scripts/studioLogin.mjs",
+    "studio:session": "node scripts/studioLogin.mjs --status"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
