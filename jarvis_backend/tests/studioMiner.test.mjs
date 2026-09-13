@@ -1,6 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseMetricNumber } from "../src/studio/hookMiner.js";
+import { parseMetricNumber, parseVideoUrl } from "../src/studio/hookMiner.js";
+
+test("URL de vídeo entrega autor e id, absoluta ou relativa", () => {
+  assert.deepEqual(parseVideoUrl("https://www.tiktok.com/@susutokshop/video/7618029041597"), {
+    author: "susutokshop",
+    videoId: "7618029041597",
+  });
+  assert.deepEqual(parseVideoUrl("/@comprinhas.vip.br/video/7672906"), {
+    author: "comprinhas.vip.br",
+    videoId: "7672906",
+  });
+});
+
+test("handle com ponto, hífen e underscore sobrevive ao parsing", () => {
+  assert.equal(parseVideoUrl("/@dicas_saude07/video/123").author, "dicas_saude07");
+  assert.equal(parseVideoUrl("/@conta-teste.br/video/456").author, "conta-teste.br");
+});
+
+test("URL que não é de vídeo devolve null em vez de objeto pela metade", () => {
+  assert.equal(parseVideoUrl("https://www.tiktok.com/@susutokshop"), null);
+  assert.equal(parseVideoUrl("https://www.tiktok.com/explore"), null);
+  assert.equal(parseVideoUrl(""), null);
+});
 
 test("sufixo K/M trata o separador como decimal, não como milhar", () => {
   assert.equal(parseMetricNumber("1.2M"), 1_200_000);

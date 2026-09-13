@@ -4,6 +4,14 @@ import { createHumanBrowser, humanScroll, sleep, gaussianDelay, randDelay } from
 const SEARCH_URL = "https://www.tiktok.com/search?q=";
 const PAGE_TIMEOUT_MS = 45_000;
 
+const VIDEO_URL_PATTERN = /\/@([\w.-]+)\/video\/(\d+)/;
+
+export function parseVideoUrl(url = "") {
+  const match = String(url).match(VIDEO_URL_PATTERN);
+  if (!match) return null;
+  return { author: match[1], videoId: match[2] };
+}
+
 const METRIC_PATTERN = /([\d.,]+)\s*(mil|mi|k|m)?/;
 const METRIC_MULTIPLIERS = { k: 1_000, mil: 1_000, m: 1_000_000, mi: 1_000_000 };
 
@@ -23,33 +31,33 @@ export function parseMetricNumber(raw = "") {
 }
 
 function extractCandidates() {
-  const captions = Array.from(document.querySelectorAll('[data-e2e="search-card-video-caption"]'));
+  const anchors = Array.from(document.querySelectorAll('a[href*="/video/"]'));
   const results = [];
 
-  for (const captionEl of captions) {
-    let container = null;
-    let node = captionEl;
+  for (const anchor of anchors) {
+    const href = anchor.getAttribute("href") || "";
+    const match = href.match(/\/@([\w.-]+)\/video\/(\d+)/);
+    if (!match) continue;
 
-    for (let i = 0; i < 10 && node; i++) {
-      node = node.parentElement;
-      if (node?.querySelector('[data-e2e="search-card-user-link"]')) {
-        container = node;
-        break;
+    let card = anchor;
+    let caption = "";
+    let viewsRaw = "";
+
+    for (let i = 0; i < 6 && card; i++) {
+      const isCardBoundary = card.querySelectorAll('a[href*="/video/"]').length === 1;
+      if (isCardBoundary) {
+        caption = card.querySelector('[data-e2e="search-card-video-caption"]')?.textContent?.trim() || caption;
+        viewsRaw = card.querySelector('[data-e2e="video-views"]')?.textContent?.trim() || viewsRaw;
       }
+      if (caption && viewsRaw) break;
+      card = card.parentElement;
     }
-
-    if (!container) continue;
-
-    const videoAnchor =
-      captionEl.closest('a[href*="/video/"]') || container.querySelector('a[href*="/video/"]');
-    const href = videoAnchor?.getAttribute("href") || "";
-    if (!href.includes("/video/")) continue;
 
     results.push({
       videoUrl: href.startsWith("http") ? href : `https://www.tiktok.com${href}`,
-      caption: captionEl.textContent?.trim() || "",
-      author: container.querySelector('[data-e2e="search-card-user-link"]')?.getAttribute("href") || "",
-      viewsRaw: container.querySelector('[data-e2e="video-views"]')?.textContent?.trim() || "",
+      caption,
+      author: match[1],
+      viewsRaw,
     });
   }
 
@@ -85,15 +93,15 @@ export async function discoverCandidates(page, niche, { limit = 12, scrollRounds
   const candidates = [];
 
   for (const item of raw) {
-    const id = item.videoUrl.match(/\/video\/(\d+)/)?.[1];
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
+    const parsed = parseVideoUrl(item.videoUrl);
+    if (!parsed || seen.has(parsed.videoId)) continue;
+    seen.add(parsed.videoId);
 
     candidates.push({
-      videoId: id,
+      videoId: parsed.videoId,
       videoUrl: item.videoUrl,
       caption: item.caption,
-      author: item.author.replace(/^\//, ""),
+      author: item.author || parsed.author,
       views: parseMetricNumber(item.viewsRaw),
       niche,
     });
