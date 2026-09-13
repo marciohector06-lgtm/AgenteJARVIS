@@ -26,7 +26,6 @@ db.exec(`
     hookFormula TEXT,
     sceneFormat TEXT,
     audioPath TEXT,
-    captionPath TEXT,
     videoPath TEXT,
     postedUrl TEXT,
     lastError TEXT,

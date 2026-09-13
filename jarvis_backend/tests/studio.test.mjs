@@ -121,3 +121,4 @@ test("vídeos base são lidos da pasta da oferta e rotacionam de forma estável"
 test("oferta sem vídeo base falha com instrução de onde colocar o arquivo", () => {
   assert.throws(() => selectBaseVideo("oferta-vazia"), /Coloque ao menos um arquivo/);
 });
+

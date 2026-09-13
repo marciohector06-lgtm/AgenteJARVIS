@@ -6,10 +6,9 @@ const STUDIO_ROOT = process.env.STUDIO_ROOT || "./studio-data";
 export const BASE_VIDEOS_DIR = resolve(STUDIO_ROOT, "base_videos");
 export const AUDIO_DIR = resolve(STUDIO_ROOT, "audio");
 export const VIDEO_DIR = resolve(STUDIO_ROOT, "videos");
-export const CAPTION_DIR = resolve(STUDIO_ROOT, "captions");
 export const CLIP_DIR = resolve(STUDIO_ROOT, "clips");
 
-const ALL_DIRS = [BASE_VIDEOS_DIR, AUDIO_DIR, VIDEO_DIR, CAPTION_DIR, CLIP_DIR];
+const ALL_DIRS = [BASE_VIDEOS_DIR, AUDIO_DIR, VIDEO_DIR, CLIP_DIR];
 
 export function ensureStudioDirs() {
   for (const dir of ALL_DIRS) {

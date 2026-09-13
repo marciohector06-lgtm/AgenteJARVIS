@@ -36,7 +36,7 @@ async function requestSpeech(narration) {
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY não configurada no .env.");
   if (!voiceId) throw new Error("ELEVENLABS_VOICE_ID não configurada no .env.");
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
   let lastError;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -46,7 +46,7 @@ async function requestSpeech(narration) {
         headers: {
           "xi-api-key": apiKey,
           "Content-Type": "application/json",
-          Accept: "application/json",
+          Accept: "audio/mpeg",
         },
         body: JSON.stringify({
           text: narration,
@@ -55,7 +55,7 @@ async function requestSpeech(narration) {
         }),
       });
 
-      if (response.ok) return response.json();
+      if (response.ok) return Buffer.from(await response.arrayBuffer());
 
       const detail = await response.text().catch(() => "");
       const error = new Error(`ElevenLabs respondeu ${response.status}: ${detail.slice(0, 200)}`);
@@ -75,60 +75,20 @@ async function requestSpeech(narration) {
   throw lastError;
 }
 
-export function alignmentToWords(alignment) {
-  const characters = alignment?.characters || [];
-  const starts = alignment?.character_start_times_seconds || [];
-  const ends = alignment?.character_end_times_seconds || [];
-
-  const words = [];
-  let current = null;
-
-  for (let i = 0; i < characters.length; i++) {
-    const char = characters[i];
-    const isSpace = /\s/.test(char);
-
-    if (isSpace) {
-      if (current) {
-        words.push(current);
-        current = null;
-      }
-      continue;
-    }
-
-    if (!current) {
-      current = { text: char, start: starts[i] ?? 0, end: ends[i] ?? starts[i] ?? 0 };
-    } else {
-      current.text += char;
-      current.end = ends[i] ?? current.end;
-    }
-  }
-
-  if (current) words.push(current);
-
-  return words;
-}
-
 export async function generateVoice(script, videoId) {
   ensureStudioDirs();
 
   const narration = buildNarration(script);
   logger.info(`studio voice: sintetizando ${narration.length} chars para o vídeo ${videoId}`);
 
-  const payload = await requestSpeech(narration);
+  const audio = await requestSpeech(narration);
 
-  if (!payload?.audio_base64) {
-    throw new Error("ElevenLabs não devolveu áudio (campo audio_base64 ausente).");
+  if (!audio || audio.length === 0) {
+    throw new Error("ElevenLabs devolveu áudio vazio.");
   }
 
   const audioPath = join(AUDIO_DIR, `audio_${videoId}.mp3`);
-  writeFileSync(audioPath, Buffer.from(payload.audio_base64, "base64"));
+  writeFileSync(audioPath, audio);
 
-  const alignment = payload.normalized_alignment || payload.alignment || null;
-  const words = alignment ? alignmentToWords(alignment) : [];
-
-  if (words.length === 0) {
-    logger.warn("studio voice: ElevenLabs não devolveu alinhamento — o vídeo sai sem legenda queimada");
-  }
-
-  return { audioPath, narration, words };
+  return { audioPath, narration };
 }

@@ -26,11 +26,7 @@ export function pickVariation(rotationIndex = 0) {
   return VARIATIONS[index];
 }
 
-export function escapeFilterPath(filePath) {
-  return String(filePath).replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
-}
-
-export function buildVideoFilters({ keepAsIs, variation, captionPath, freezeSeconds }) {
+export function buildVideoFilters({ keepAsIs, variation, freezeSeconds }) {
   const filters = [];
 
   if (!keepAsIs) {
@@ -46,10 +42,6 @@ export function buildVideoFilters({ keepAsIs, variation, captionPath, freezeSeco
     }
   }
 
-  if (captionPath) {
-    filters.push(`subtitles='${escapeFilterPath(captionPath)}'`);
-  }
-
   if (freezeSeconds > 0) {
     filters.push(`tpad=stop_mode=clone:stop_duration=${freezeSeconds.toFixed(2)}`);
   }
@@ -57,7 +49,7 @@ export function buildVideoFilters({ keepAsIs, variation, captionPath, freezeSeco
   return filters;
 }
 
-export function renderVideo({ videoId, baseVideoPath, audioPath, captionPath = null, keepAsIs = false, rotationIndex = 0 }) {
+export function renderVideo({ videoId, baseVideoPath, audioPath, keepAsIs = false, rotationIndex = 0 }) {
   ensureStudioDirs();
 
   if (!existsSync(baseVideoPath)) throw new Error(`Vídeo base não encontrado: ${baseVideoPath}`);
@@ -68,7 +60,7 @@ export function renderVideo({ videoId, baseVideoPath, audioPath, captionPath = n
   const freezeSeconds = audioDuration > videoDuration ? audioDuration - videoDuration + FREEZE_PADDING_SECONDS : 0;
 
   const variation = pickVariation(rotationIndex);
-  const videoFilters = buildVideoFilters({ keepAsIs, variation, captionPath, freezeSeconds });
+  const videoFilters = buildVideoFilters({ keepAsIs, variation, freezeSeconds });
 
   const audioFilters = ["loudnorm=I=-16:TP=-1.5:LRA=11"];
   if (keepAsIs) audioFilters.push("apad");
