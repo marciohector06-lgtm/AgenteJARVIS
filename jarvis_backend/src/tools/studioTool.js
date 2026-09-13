@@ -6,7 +6,8 @@ import { listBaseVideos } from "../studio/baseVideos.js";
 import { offerReadiness, produceVideoForOffer } from "../studio/producer.js";
 import { pendingApprovals, listRecent } from "../studio/pipeline.js";
 import { formulaPerformance } from "../studio/measurement.js";
-import { countMinedHooks } from "../studio/hookStore.js";
+import { countMinedHooks, searchMinedHooks } from "../studio/hookStore.js";
+import { mineHooksForNiche } from "../studio/hookAnalyzer.js";
 
 function describeOffers() {
   const offers = listOffers();
@@ -70,6 +71,32 @@ export const studioTool = tool(
         return `Oferta "${offer.id}" criada. Coloque os vídeos base em studio-data/base_videos/${offer.id}/ antes de produzir.`;
       }
 
+      if (action === "minerar_ganchos") {
+        if (!category) return "Informe category com o nicho a minerar, ex: 'suplemento sono'.";
+
+        const analisados = await mineHooksForNiche(category, { analyzeLimit: 5 });
+
+        if (analisados.length === 0) {
+          return "Nenhum gancho minerado. A busca do TikTok precisa da sessão da conta de mineração — rode `npm run studio:login`.";
+        }
+
+        return [
+          `${analisados.length} gancho(s) minerado(s) para "${category}":`,
+          ...analisados.map((h) => `- fórmula ${h.formula} (nota ${h.gripScore}): ${h.mechanism}`),
+        ].join("\n");
+      }
+
+      if (action === "ganchos") {
+        const guardados = await searchMinedHooks(category || "", { limit: 8 });
+
+        if (guardados.length === 0) return "Nenhum gancho minerado ainda. Use action='minerar_ganchos'.";
+
+        return [
+          `${countMinedHooks()} ganchos no banco. Melhores${category ? ` para "${category}"` : ""}:`,
+          ...guardados.map((h) => `- [${h.niche}] fórmula ${h.formula}, nota ${h.gripScore}: ${h.mechanism}`),
+        ].join("\n");
+      }
+
       if (action === "produzir") {
         if (!offerId) return "Informe offerId. Use action='listar_ofertas' para ver os ids disponíveis.";
 
@@ -92,10 +119,10 @@ export const studioTool = tool(
   {
     name: "studio_tool",
     description:
-      "Fábrica de conteúdo do TikTok Shop (@sodre.luxe). Use para: listar ofertas cadastradas, criar oferta nova, produzir um vídeo (roteiro + voz + render, entra na fila de aprovação do app), ver a fila aguardando aprovação, ver o histórico de vídeos, e ver o desempenho por fórmula de gancho. Produzir gasta crédito de Gemini e ElevenLabs. A publicação no TikTok é sempre manual do Márcio — esta tool nunca publica.",
+      "Fábrica de conteúdo do TikTok Shop (@sodre.luxe). Use para: listar ofertas cadastradas, criar oferta nova, produzir um vídeo (roteiro + voz + render, entra na fila de aprovação do app), ver a fila aguardando aprovação, ver o histórico de vídeos, ver o desempenho por fórmula de gancho, minerar ganchos de vídeos em alta de um nicho (baixa os primeiros segundos, transcreve e classifica o mecanismo) e consultar os ganchos já minerados. Produzir gasta crédito de Gemini e ElevenLabs. A publicação no TikTok é sempre manual do Márcio — esta tool nunca publica.",
     schema: z.object({
       action: z
-        .enum(["listar_ofertas", "criar_oferta", "produzir", "fila", "historico", "desempenho"])
+        .enum(["listar_ofertas", "criar_oferta", "produzir", "fila", "historico", "desempenho", "minerar_ganchos", "ganchos"])
         .describe("O que fazer no Studio"),
       offerId: z.string().optional().describe("Id da oferta, para 'produzir' ou 'criar_oferta'"),
       productName: z.string().optional().describe("Produto EXATO que aparece no vídeo, obrigatório em 'criar_oferta'"),
